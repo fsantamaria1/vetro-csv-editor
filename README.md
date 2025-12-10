@@ -1,2 +1,3 @@
-# vetro-csv-editor
-A Streamlit-based CSV editor for bulk updating Vetro feature layer properties via API
+# Vetro Feature Layer CSV Editor
+
+A Streamlit-based GUI application for editing and updating Vetro feature layer properties via CSV files.
