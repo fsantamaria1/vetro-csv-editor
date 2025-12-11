@@ -1,0 +1,4 @@
+streamlit==1.52.1
+streamlit-js-eval==0.1.7
+openpyxl==3.1.5
+python-decouple~=3.8
