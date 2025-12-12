@@ -2,13 +2,17 @@
 Root page for the Vetro Feature Layer Editor app.
 This servers as the Home/Welcome screen.
 """
+
 import os
 import streamlit as st
 from decouple import config
+from vetro.ui import render_sidebar
 
 st.set_page_config(
     page_title="Vetro Feature Layer Editor", page_icon="🔧", layout="wide"
 )
+
+render_sidebar()
 
 
 def main():
@@ -31,13 +35,9 @@ def main():
 
     if backend_key:
         st.success("✅ Backend API key available (hidden).")
-        st.caption(
-            "This does not expose the key. "
-        )
+        st.caption("This does not expose the key. ")
     else:
-        st.warning(
-            "No backend  API key configured on the server. "
-        )
+        st.warning("No backend  API key configured on the server. ")
 
     st.divider()
 
@@ -50,6 +50,7 @@ def main():
     - 🗑️ Clear your key when done on a shared/public server
     """
     )
+
 
 if __name__ == "__main__":
     main()
