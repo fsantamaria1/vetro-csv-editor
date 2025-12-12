@@ -41,5 +41,15 @@ def main():
 
     st.divider()
 
+    st.markdown("### 🔒 Security & Best Practices")
+    st.markdown(
+        """
+    - 🔐 API keys are never printed or stored on the server by default
+    - 🗝️ Use browser localStorage (encrypted) to persist your personal key
+    - 👤 Use personal tokens for testing; integration tokens for production
+    - 🗑️ Clear your key when done on a shared/public server
+    """
+    )
+
 if __name__ == "__main__":
     main()
