@@ -42,6 +42,7 @@ def render_sidebar():
                     st.caption("Using: **Backend Key**")
             else:
                 st.markdown("**:red[● Offline]**")
+                st.caption("Please configure settings")
 
         st.divider()
 
