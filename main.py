@@ -32,12 +32,23 @@ def main():
     backend_key = os.environ.get("VETRO_API_KEY", "") or config(
         "VETRO_API_KEY", default=""
     )
-
     if backend_key:
         st.success("✅ Backend API key available (hidden).")
         st.caption("This does not expose the key. ")
     else:
-        st.warning("No backend  API key configured on the server. ")
+        st.warning(
+            "No backend  API key configured on the server. "
+            "Use Settings to save your personal key to the browser."
+        )
+
+    st.divider()
+
+    st.markdown("### 🚀 Quick Start")
+    st.markdown(
+        """
+    1. Go to **Settings** and set up your API key (or use backend key if configured)
+    """
+    )
 
     st.divider()
 
