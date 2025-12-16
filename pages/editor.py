@@ -270,6 +270,19 @@ def render_data_editor(current_file: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
         display_cols = original_df.columns.tolist()
 
     st.markdown("### 📝 Edit Data")
+
+    # Checkbox bound to session state
+    show_vetro = st.checkbox(
+        "Show Vetro ID column",
+        key="show_vetro_id",
+        help="Toggle visibility of the unique Vetro ID. This setting is saved.",
+    )
+
+    # Logic to remove ID if unchecked
+    if not show_vetro:
+        if "vetro_id" in display_cols:
+            display_cols.remove("vetro_id")
+
     st.caption("💡 Drag handle to fill. Copy/Paste supported.")
 
     column_config = {"vetro_id": st.column_config.TextColumn("Vetro ID", disabled=True)}
@@ -281,7 +294,7 @@ def render_data_editor(current_file: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
         original_df[display_cols],
         key=editor_key,
         height=500,
-        use_container_width=True,
+        width="stretch",
         num_rows="dynamic",
         column_config=column_config,
     )
