@@ -7,8 +7,8 @@ from typing import Optional, Tuple
 import streamlit as st
 import pandas as pd
 from decouple import config
-
 from vetro.api import VetroAPIClient
+from session_manager import init_session_state
 
 st.set_page_config(page_title="Vetro Editor", page_icon="🔧", layout="wide")
 
@@ -111,17 +111,6 @@ FEATURE_TYPE_KEYWORDS = {
     "closure": "Aerial Splice Closure",
     "pole": "Pole",
 }
-
-
-def init_session_state():
-    """Initialize commonly shared session state keys."""
-    ss = st.session_state
-    ss.setdefault("dataframes", {})
-    ss.setdefault("feature_types", {})
-    ss.setdefault("current_file", None)
-    ss.setdefault("user_api_key", "")
-    ss.setdefault("key_preference", "Use user key (if set)")
-    ss.setdefault("editor_id", 0)
 
 
 init_session_state()

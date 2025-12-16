@@ -7,6 +7,7 @@ import os
 import streamlit as st
 from decouple import config
 from vetro.ui import render_sidebar
+from session_manager import init_session_state
 
 # Import custom storage helpers
 from vetro import (
@@ -16,18 +17,6 @@ from vetro import (
 )
 
 st.set_page_config(page_title="Settings - Vetro Editor", page_icon="⚙️", layout="wide")
-
-
-def init_session_state():
-    """Initialize session state defaults."""
-    if "user_api_key" not in st.session_state:
-        st.session_state.user_api_key = ""
-    if "key_preference" not in st.session_state:
-        st.session_state.key_preference = "Use user key (if set)"
-
-    # Track if we have already checked storage this session
-    if "storage_checked" not in st.session_state:
-        st.session_state.storage_checked = False
 
 
 init_session_state()
