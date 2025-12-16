@@ -68,6 +68,38 @@ FEATURE_COLUMNS = {
         "HO 1",
         "vetro_id",
     ],
+    "Pole": [
+        "ID",
+        "Road Name",
+        "Town",
+        "Project",
+        "State",
+        "Owner",
+        "Elco Id",
+        "Telco Id",
+        "Drop Type",
+        "Status",
+        "Make Ready Required",
+        "Licensed",
+        "Attachment Height",
+        "Age",
+        "Class",
+        "Diameter",
+        "Height",
+        "Links",
+        "Make Ready LoE",
+        "Material",
+        "Permitted",
+        "Surveyed",
+        "Type",
+        "Latitude",
+        "Survey Date",
+        "Longitude",
+        "Make Ready Explanation",
+        "Assigned To",
+        "Permit Number",
+        "vetro_id",
+    ],
 }
 
 FEATURE_TYPE_KEYWORDS = {
@@ -77,6 +109,7 @@ FEATURE_TYPE_KEYWORDS = {
     "handhole": "Handhole",
     "splice": "Aerial Splice Closure",
     "closure": "Aerial Splice Closure",
+    "pole": "Pole",
 }
 
 
