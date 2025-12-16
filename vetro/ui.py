@@ -22,7 +22,6 @@ def render_sidebar():
     )
 
     with st.sidebar:
-        st.divider()
 
         # 2. Status Widget (Using native border container)
         backend_key = os.environ.get("VETRO_API_KEY") or config(
@@ -46,22 +45,22 @@ def render_sidebar():
 
         st.divider()
 
-        # 3. Resources (Using native link buttons)
-        st.subheader("📚 Resources")
+        # # 3. Resources (Using native link buttons)
+        # st.subheader("📚 Resources")
 
-        # These render as clean, clickable buttons that open in a new tab
-        st.link_button(
-            "📖 API Documentation",
-            "https://app.vetro.io/integrations/list/guides",
-            width="stretch",
-        )
+        # # These render as clean, clickable buttons that open in a new tab
+        # st.link_button(
+        #     "📖 API Documentation",
+        #     "https://app.vetro.io/integrations/list/guides",
+        #     width="stretch",
+        # )
 
-        st.link_button(
-            "🐞 Report an Issue",
-            "https://github.com/fsantamaria1/vetro-csv-editor/issues",
-            width="stretch",
-            help="Found a bug? Let us know on GitHub.",
-        )
+        # st.link_button(
+        #     "🐞 Report an Issue",
+        #     "https://github.com/fsantamaria1/vetro-csv-editor/issues",
+        #     width="stretch",
+        #     help="Found a bug? Let us know on GitHub.",
+        # )
 
-        st.divider()
+        # st.divider()
         st.caption("Vetro Editor v1.0.0")
