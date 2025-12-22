@@ -7,93 +7,31 @@ import os
 import streamlit as st
 from decouple import config
 from vetro.ui import render_sidebar
+from vetro.local_storage import save_key_to_local_storage
 
-# Import custom storage helpers
-from vetro import (
-    load_key_from_local_storage,
-    save_key_to_local_storage,
-    delete_key_from_local_storage,
+# Import our new state manager
+from vetro.state import (
+    init_session_state,
+    sync_storage,
+    on_key_change,
+    on_clear_key,
+    on_pref_change,
 )
 
 st.set_page_config(page_title="Settings - Vetro Editor", page_icon="⚙️", layout="wide")
 
-
-def init_session_state():
-    """Initialize session state defaults."""
-    # Flag to force a storage re-check
-    should_recheck_storage = False
-
-    # 1. Check User API Key
-    # If this is missing, it means we are either on a fresh load 
-    # OR we navigated back from another page (and Streamlit cleaned up the widget).
-    if "user_api_key" not in st.session_state:
-        st.session_state.user_api_key = ""
-        should_recheck_storage = True
-
-    # 2. Check Key Preference
-    if "key_preference" not in st.session_state:
-        st.session_state.key_preference = "Use user key (if set)"
-        should_recheck_storage = True
-
-    # 3. Logic: If we had to restore missing keys, we MUST check storage again.
-    if should_recheck_storage:
-        st.session_state.storage_checked = False
-
-    # 4. Default initialization for the flag itself
-    if "storage_checked" not in st.session_state:
-        st.session_state.storage_checked = False
-
-
-def on_clear_key():
-    """Callback: clear key from session and flag for JS deletion."""
-    st.session_state.user_api_key = ""
-    # We set a flag so the JS execution happens in the main body
-    st.session_state.pending_delete = True
-
-
-def on_key_change():
-    """Callback: reset loaded flag when user types."""
-    # If the user touches the key, it is no longer 'loaded from storage'
-    st.session_state.loaded_from_storage = False
-
-
-def on_pref_change():
-    """Callback: save preference immediately when changed."""
-    save_key_to_local_storage(st.session_state.key_preference, "vetro_key_pref")
-
-
+# Initialize and Sync
 init_session_state()
 render_sidebar()
 
 
 def main():
     """Main execution function for the settings page."""
+    # Run the sync logic (Auto-load & Pending Deletes)
+    sync_storage()
+
     st.title("⚙️ Settings")
     st.markdown("Configure your API connection and application preferences.")
-
-    # ========== Auto-load logic ==========
-    if not st.session_state.storage_checked:
-        # Load both user settings items
-        stored_key = load_key_from_local_storage("vetro_api_key")
-        stored_pref = load_key_from_local_storage("vetro_key_pref")
-
-        # Only proceed if BOTH have finished loading (are not None)
-        if stored_key is not None and stored_pref is not None:
-            if stored_key:
-                st.session_state.user_api_key = stored_key
-                st.session_state.loaded_from_storage = True
-
-            if stored_pref:
-                st.session_state.key_preference = stored_pref
-
-            st.session_state.storage_checked = True
-            st.rerun()
-
-    # ========== Pending Delete Logic ==========
-    if st.session_state.get("pending_delete"):
-        delete_key_from_local_storage("vetro_api_key")
-        st.session_state.pending_delete = False
-        st.toast("Key removed from browser storage.")
 
     left_col, right_col = st.columns([2, 1])
 
@@ -128,7 +66,7 @@ def main():
             placeholder="Ex: Token 12345...",
         )
 
-        col_save, col_clear = st.columns([1, 2])
+        col_save, col_clear = st.columns([1, 1])
 
         with col_save:
             if st.button("💾 Save Key", type="primary"):
@@ -166,7 +104,7 @@ def main():
                 on_change=on_pref_change,
                 help="Decide which key takes precedence if both are available.",
             )
-            
+
             st.markdown("---")
 
             pref = st.session_state.key_preference
