@@ -30,6 +30,12 @@ def init_session_state():
         st.session_state.storage_checked = False
 
 
+def on_clear_key():
+    """Callback: clear key from session and flag for JS deletion."""
+    st.session_state.user_api_key = ""
+    # We set a flag so the JS execution happens in the main body
+    st.session_state.pending_delete = True
+
 init_session_state()
 render_sidebar()
 
