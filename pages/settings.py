@@ -24,7 +24,7 @@ def init_session_state():
     should_recheck_storage = False
 
     # 1. Check User API Key
-    # If this is missing, it means we are either on a fresh load 
+    # If this is missing, it means we are either on a fresh load
     # OR we navigated back from another page (and Streamlit cleaned up the widget).
     if "user_api_key" not in st.session_state:
         st.session_state.user_api_key = ""
@@ -80,6 +80,7 @@ def main():
         if stored_key is not None and stored_pref is not None:
             if stored_key:
                 st.session_state.user_api_key = stored_key
+                st.session_state.saved_to_browser = True
 
             if stored_pref:
                 st.session_state.key_preference = stored_pref
@@ -121,6 +122,7 @@ def main():
             "Enter Vetro API Key",
             key="user_api_key",
             type="password",
+            on_change=on_key_change,
             help="Your key is stored securely in your browser's LocalStorage.",
             placeholder="Ex: Token 12345...",
         )
@@ -133,6 +135,7 @@ def main():
                     save_key_to_local_storage(
                         st.session_state.user_api_key, "vetro_api_key"
                     )
+                    st.session_state.saved_to_browser = True
                     st.success("Key saved to browser!")
                 else:
                     st.error("Enter a key first.")
@@ -141,7 +144,7 @@ def main():
             st.button("🗑️ Clear Key", on_click=on_clear_key)
 
         # Visual Feedback
-        if st.session_state.user_api_key:
+        if st.session_state.user_api_key and st.session_state.saved_to_browser:
             current_key = st.session_state.user_api_key
             if len(current_key) > 8:
                 masked = f"{current_key[:4]}...{current_key[-4:]}"
@@ -162,7 +165,7 @@ def main():
                 on_change=on_pref_change,
                 help="Decide which key takes precedence if both are available.",
             )
-            
+
             st.markdown("---")
 
             pref = st.session_state.key_preference
