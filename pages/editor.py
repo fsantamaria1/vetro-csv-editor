@@ -202,14 +202,17 @@ def compute_diff(
 def get_changed_rows(
     diff_df: pd.DataFrame, edited_df: pd.DataFrame, id_col: str = "vetro_id"
 ) -> pd.DataFrame:
-    """Filter the edited DataFrame to return only rows that changed."""
+    """Filter the edited DataFrame to return only rows/columns that changed."""
     if diff_df.empty:
         return pd.DataFrame()
 
     if id_col in diff_df.columns:
-        changed_ids = set(diff_df[id_col].unique())
-        return edited_df[edited_df[id_col].isin(changed_ids)].copy()
+        # Pivot: Index=ID, Columns=Changed Fields, Values=New Value
+        delta_df = diff_df.pivot(index=id_col, columns="column", values="new_value")
 
+        # Reset index so 'vetro_id' becomes a regular column again
+        delta_df.reset_index(inplace=True)
+        return delta_df
     changed_indices = set(diff_df["row_index"].unique())
     return edited_df.iloc[list(changed_indices)].copy()
 
@@ -276,7 +279,7 @@ def render_data_editor(current_file: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
         "Show Vetro ID column",
         key="show_vetro_id",
         help="Toggle visibility of the unique Vetro ID. This setting is saved.",
-        value=True
+        value=True,
     )
 
     # Logic to remove ID if unchecked
@@ -327,7 +330,9 @@ def handle_api_submission(
     if changed_rows.empty:
         return
 
-    st.info(f"Ready to update {len(changed_rows)} features.")
+    # Count unique features being updated
+    feature_count = len(changed_rows)
+    st.info(f"Ready to update {feature_count} features.")
 
     col_conf, col_dry = st.columns([1, 2])
     with col_dry:
@@ -343,8 +348,9 @@ def handle_api_submission(
         client = VetroAPIClient(effective_key)
 
         if dry_run:
+            # Generate preview from the sparse dataframe
             preview = client.convert_df_to_features(changed_rows.head(5))
-            st.json({"features": preview, "note": "Preview of first 5 items"})
+            st.json({"features": preview, "note": "Preview of first 5 items (Changes Only)"})
         else:
             st.info("📡 Sending updates...")
             prog_bar = st.progress(0)
