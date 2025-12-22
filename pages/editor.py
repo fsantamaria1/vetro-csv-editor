@@ -196,7 +196,14 @@ def compute_diff(
                     {"row_index": i, "column": col, "old_value": old, "new_value": newv}
                 )
 
-    return pd.DataFrame(diffs)
+    diff_df = pd.DataFrame(diffs)
+
+    # Convert mixed types (Strings + NaNs) to string to prevent Arrow crashes
+    if not diff_df.empty:
+        diff_df["old_value"] = diff_df["old_value"].astype(str)
+        diff_df["new_value"] = diff_df["new_value"].astype(str)
+
+    return diff_df
 
 
 def get_changed_rows(
@@ -284,7 +291,6 @@ def render_data_editor(current_file: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
 
     column_config = {"vetro_id": st.column_config.TextColumn("Vetro ID", disabled=True)}
 
-    # Use dictionary syntax for Pylint safety
     editor_key = f"editor_{current_file}_{st.session_state['editor_id']}"
 
     edited_df = st.data_editor(
