@@ -51,6 +51,11 @@ def on_clear_key():
     st.session_state.pending_delete = True
 
 
+def on_key_change():
+    """Callback: mark key as unsaved when user types."""
+    st.session_state.saved_to_browser = False
+
+
 def on_pref_change():
     """Callback: save preference immediately when changed."""
     save_key_to_local_storage(st.session_state.key_preference, "vetro_key_pref")
