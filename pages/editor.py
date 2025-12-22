@@ -329,7 +329,7 @@ def handle_api_submission(
 
     st.info(f"Ready to update {len(changed_rows)} features.")
 
-    col_dry, col_conf = st.columns([1, 2])
+    col_conf, col_dry = st.columns([1, 2])
     with col_dry:
         dry_run = st.checkbox("🧪 Dry run", value=False)
     with col_conf:
