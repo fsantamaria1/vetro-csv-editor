@@ -40,15 +40,20 @@ def main():
     st.markdown("Configure your API connection and application preferences.")
 
     if not st.session_state.storage_checked:
-        # ========== Auto-load logic ==========
-        stored_key = load_key_from_local_storage()
+        # Load both user settings items
+        stored_key = load_key_from_local_storage("vetro_api_key")
+        stored_pref = load_key_from_local_storage("vetro_key_pref")
 
-        if stored_key is not None:
+        # Only proceed if BOTH have finished loading (are not None)
+        if stored_key is not None and stored_pref is not None:
             if stored_key:
                 st.session_state.user_api_key = stored_key
-                st.rerun()
+
+            if stored_pref:
+                st.session_state.key_preference = stored_pref
 
             st.session_state.storage_checked = True
+            st.rerun()
 
     left_col, right_col = st.columns([2, 1])
 
@@ -82,15 +87,15 @@ def main():
             placeholder="Ex: Token 12345...",
         )
 
-        col_save, col_clear = st.columns([1, 4])
+        col_save, col_clear = st.columns([1, 2])
 
         with col_save:
             if st.button("💾 Save Key", type="primary"):
                 if key_input:
                     st.session_state.user_api_key = key_input
-                    save_key_to_local_storage(key_input)
+                    save_key_to_local_storage(key_input, "vetro_api_key")
                     st.success("Key saved to browser!")
-                    st.rerun()
+                    # NOTE: We DO NOT rerun here, let the save JS execute.
                 else:
                     st.error("Enter a key first.")
 
@@ -98,9 +103,9 @@ def main():
             if st.session_state.user_api_key:
                 if st.button("🗑️ Clear Key"):
                     st.session_state.user_api_key = ""
-                    delete_key_from_local_storage()
+                    delete_key_from_local_storage("vetro_api_key")
                     st.warning("Key removed from browser and session.")
-                    st.rerun()
+                    # NOTE: We DO NOT rerun here either, let the delete JS execute.
 
         # Visual Feedback
         if st.session_state.user_api_key:
@@ -117,17 +122,23 @@ def main():
         with st.container(border=True):
             st.subheader("Preferences")
 
+            # Determine index for radio based on current state
+            current_pref_index = 0
+            if st.session_state.key_preference == "Always use backend key":
+                current_pref_index = 1
+
             pref = st.radio(
                 "Priority Logic",
                 options=["Use user key (if set)", "Always use backend key"],
-                index=(
-                    0
-                    if st.session_state.key_preference == "Use user key (if set)"
-                    else 1
-                ),
+                index=current_pref_index,
                 help="Decide which key takes precedence if both are available.",
             )
-            st.session_state.key_preference = pref
+
+            # Update state AND save to storage if changed
+            if pref != st.session_state.key_preference:
+                st.session_state.key_preference = pref
+                save_key_to_local_storage(pref, "vetro_key_pref")
+                st.success("Preference saved.")
 
             st.markdown("---")
 

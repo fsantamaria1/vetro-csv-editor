@@ -4,25 +4,32 @@ Uses json.dumps to safely serialize data for JavaScript execution.
 """
 
 import json
+from typing import Optional
 from streamlit_js_eval import streamlit_js_eval as sje
 
 
-def load_key_from_local_storage(local_key_name: str = "vetro_api_key") -> str:
+def load_key_from_local_storage(local_key_name: str = "vetro_api_key") -> Optional[str]:
     """
     Attempt to load the API key from browser localStorage.
-    Returns the key if found, otherwise returns empty string.
+
+    Returns:
+        - None: If the component is still loading (WAIT).
+        - "": If the key is not found or empty.
+        - str: The actual key.
     """
     try:
         safe_key_name = json.dumps(local_key_name)
+        # We use || '' to ensure we get an empty string if the key is missing (null),
+        # allowing us to distinguish 'Missing' from 'Still Loading' (None).
         result = sje(
-            js_expressions=f"localStorage.getItem({safe_key_name})",
+            js_expressions=f"localStorage.getItem({safe_key_name}) || ''",
             key=f"load_{local_key_name}",
         )
-        if result is not None:
-            return result if isinstance(result, str) else ""
+        # If result is None, the component hasn't reported back yet.
+        return result
     except (RuntimeError, ValueError, TypeError):
         pass
-    return ""
+    return None
 
 
 def save_key_to_local_storage(
