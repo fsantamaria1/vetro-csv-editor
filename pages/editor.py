@@ -272,22 +272,15 @@ def render_data_editor(current_file: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
     else:
         display_cols = original_df.columns.tolist()
 
-    st.markdown("### 📝 Edit Data")
-
-    # Checkbox bound to session state
-    show_vetro = st.checkbox(
-        "Show Vetro ID column",
-        key="show_vetro_id",
-        help="Toggle visibility of the unique Vetro ID. This setting is saved.",
-        value=True,
-    )
-
-    # Logic to remove ID if unchecked
-    if not show_vetro:
+    # Ensure vetro_id is always visible and is the first column
+    if "vetro_id" in original_df.columns:
+        # If it was already in the list (e.g. from FEATURE_COLUMNS), remove it first
         if "vetro_id" in display_cols:
             display_cols.remove("vetro_id")
+        # Insert at the very beginning
+        display_cols.insert(0, "vetro_id")
 
-    st.caption("💡 Drag handle to fill. Copy/Paste supported.")
+    st.markdown("### 📝 Edit Data")
 
     column_config = {"vetro_id": st.column_config.TextColumn("Vetro ID", disabled=True)}
 
@@ -350,7 +343,9 @@ def handle_api_submission(
         if dry_run:
             # Generate preview from the sparse dataframe
             preview = client.convert_df_to_features(changed_rows.head(5))
-            st.json({"features": preview, "note": "Preview of first 5 items (Changes Only)"})
+            st.json(
+                {"features": preview, "note": "Preview of first 5 items (Changes Only)"}
+            )
         else:
             st.info("📡 Sending updates...")
             prog_bar = st.progress(0)
