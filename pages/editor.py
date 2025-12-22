@@ -276,6 +276,7 @@ def render_data_editor(current_file: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
         "Show Vetro ID column",
         key="show_vetro_id",
         help="Toggle visibility of the unique Vetro ID. This setting is saved.",
+        value=True
     )
 
     # Logic to remove ID if unchecked
