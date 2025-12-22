@@ -36,6 +36,12 @@ def on_clear_key():
     # We set a flag so the JS execution happens in the main body
     st.session_state.pending_delete = True
 
+
+def on_pref_change():
+    """Callback: save preference immediately when changed."""
+    save_key_to_local_storage(st.session_state.key_preference, "vetro_key_pref")
+
+
 init_session_state()
 render_sidebar()
 
