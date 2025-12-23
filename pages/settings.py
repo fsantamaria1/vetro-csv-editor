@@ -3,11 +3,10 @@ Settings page for the Vetro Feature Layer Editor.
 Manages API key configuration using browser localStorage for security.
 """
 
-import os
 import streamlit as st
-from decouple import config
 from vetro.ui import render_sidebar
 from vetro.local_storage import save_key_to_local_storage
+from vetro.config import get_backend_key
 
 # Import our new state manager
 from vetro.state import (
@@ -38,10 +37,7 @@ def main():
     with left_col:
         # ========== Backend Key Status ==========
         st.subheader("1. Backend Environment")
-        backend_key = os.environ.get("VETRO_API_KEY", "") or config(
-            "VETRO_API_KEY", default=""
-        )
-
+        backend_key = get_backend_key()
         if backend_key:
             st.success("✅ Backend API key is configured (hidden).")
             st.caption(
