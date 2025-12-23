@@ -53,9 +53,10 @@ def main():
         st.subheader("2. Your Session Key")
         st.markdown("Override the backend key with your personal API key.")
 
+        # Widget Key is decoupled from Data Key to prevent deletion on nav
         st.text_input(
             "Enter Vetro API Key",
-            key="user_api_key",
+            key="widget_user_api_key",
             type="password",
             on_change=on_key_change,
             help="Your key is stored securely in your browser's LocalStorage.",
@@ -93,10 +94,22 @@ def main():
         with st.container(border=True):
             st.subheader("Preferences")
 
+            # Determine index safely for the radio button
+            pref_options = ["Use user key (if set)", "Always use backend key"]
+            try:
+                # We check the WIDGET key here to ensure consistency
+                curr_val = st.session_state.get(
+                    "widget_key_preference", pref_options[0]
+                )
+                curr_index = pref_options.index(curr_val)
+            except ValueError:
+                curr_index = 0
+
             st.radio(
                 "Priority Logic",
-                options=["Use user key (if set)", "Always use backend key"],
-                key="key_preference",
+                options=pref_options,
+                key="widget_key_preference",
+                index=curr_index,
                 on_change=on_pref_change,
                 help="Decide which key takes precedence if both are available.",
             )
