@@ -8,7 +8,7 @@ import pandas as pd
 
 from vetro.api import VetroAPIClient
 from vetro.config import get_backend_key
-from vetro.state import init_session_state as init_shared_state, sync_storage
+from vetro.state import init_shared_state, sync_storage
 
 st.set_page_config(page_title="Vetro Editor", page_icon="🔧", layout="wide")
 

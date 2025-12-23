@@ -10,7 +10,7 @@ from vetro.config import get_backend_key
 
 # Import our new state manager
 from vetro.state import (
-    init_session_state,
+    init_shared_state,
     sync_storage,
     on_key_change,
     on_clear_key,
@@ -20,7 +20,7 @@ from vetro.state import (
 st.set_page_config(page_title="Settings - Vetro Editor", page_icon="⚙️", layout="wide")
 
 # Initialize and Sync
-init_session_state()
+init_shared_state()
 render_sidebar()
 
 
