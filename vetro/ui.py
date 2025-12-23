@@ -60,4 +60,4 @@ def render_sidebar():
         # )
 
         # st.divider()
-        st.caption("Vetro Editor v1.0.0")
+        st.caption("Vetro Editor v1.1.0")
