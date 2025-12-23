@@ -5,3 +5,4 @@ version_files = [
     "vetro/version.py"
 ]
 tag_format = "v$version"
+update_changelog = true
