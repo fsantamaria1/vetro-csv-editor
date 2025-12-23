@@ -2,9 +2,8 @@
 Shared UI components using native Streamlit elements.
 """
 
-import os
 import streamlit as st
-from decouple import config
+from vetro.config import get_backend_key
 
 
 def render_sidebar():
@@ -23,10 +22,8 @@ def render_sidebar():
 
     with st.sidebar:
 
-        # 2. Status Widget (Using native border container)
-        backend_key = os.environ.get("VETRO_API_KEY") or config(
-            "VETRO_API_KEY", default=""
-        )
+        # 2. Status Widget
+        backend_key = get_backend_key()
         user_key = st.session_state.get("user_api_key")
 
         st.subheader("🔌 Connection")

@@ -2,13 +2,12 @@
 Editor page
 """
 
-import os
 from typing import Optional, Tuple
 import streamlit as st
 import pandas as pd
-from decouple import config
 
 from vetro.api import VetroAPIClient
+from vetro.config import get_backend_key
 
 st.set_page_config(page_title="Vetro Editor", page_icon="🔧", layout="wide")
 
@@ -138,9 +137,7 @@ def detect_feature_type(filename: str) -> Optional[str]:
 
 def get_effective_api_key() -> Optional[str]:
     """Determine which API key to use based on preferences."""
-    backend_key = os.environ.get("VETRO_API_KEY", "") or config(
-        "VETRO_API_KEY", default=""
-    )
+    backend_key = get_backend_key()
     pref = st.session_state.get("key_preference", "Use user key (if set)")
     user_key = st.session_state.get("user_api_key", "")
 
