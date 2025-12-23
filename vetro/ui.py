@@ -4,6 +4,7 @@ Shared UI components using native Streamlit elements.
 
 import streamlit as st
 from vetro.config import get_backend_key
+from vetro.version import __version__
 
 
 def render_sidebar():
@@ -60,4 +61,4 @@ def render_sidebar():
         # )
 
         # st.divider()
-        st.caption("Vetro Editor v1.1.0")
+        st.caption(__version__)
