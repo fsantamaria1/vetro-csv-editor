@@ -6,10 +6,15 @@ This servers as the Home/Welcome screen.
 import streamlit as st
 from vetro.ui import render_sidebar
 from vetro.config import get_backend_key
+from vetro.state import init_shared_state, sync_storage
 
 st.set_page_config(
     page_title="Vetro Feature Layer Editor", page_icon="🔧", layout="wide"
 )
+
+# Initialize session state & sync browser storage
+init_shared_state()
+sync_storage()
 
 render_sidebar()
 
