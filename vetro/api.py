@@ -5,7 +5,7 @@ Pandas DataFrames to Vetro feature payloads.
 
 import time
 import logging
-from typing import List, Dict
+from typing import List, Dict, Any
 import requests
 import pandas as pd
 
@@ -194,15 +194,23 @@ class VetroAPIClient:
         Convert DataFrame rows to the Vetro 'Feature' JSON payload.
         Only includes properties (no geometry).
         Skips columns named 'vetro_id' and any column starting with 'v_'.
+        
+        Updated logic: Preserves explicit None values (sending them as null).
         """
         features = []
         for _, row in df.iterrows():
             properties = {}
             for col in df.columns:
                 if col == "vetro_id" or str(col).startswith("v_"):
-                    continue
+                    continue             
                 val = row[col]
-                if pd.notna(val):
+                
+                # Check for explicit None (passed from Force Push logic)
+                if val is None:
+                    properties[col] = None
+                
+                # Check for existing data (Strings, numbers, etc.)
+                elif pd.notna(val):
                     properties[col] = str(val)
             vetro_id = row.get("vetro_id")
             feature = {
