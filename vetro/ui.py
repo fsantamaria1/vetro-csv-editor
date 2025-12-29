@@ -33,16 +33,12 @@ def render_sidebar():
                 st.markdown("**:green[● Online]**")
 
                 # Determine the correct label for the UI
-                backend_key = get_backend_key()
-                user_key = st.session_state.get("user_api_key")
                 pref = st.session_state.get("key_preference")
 
-                # Default label
-                label = "Session key"
-
-                if active_key == backend_key:
-                    if pref == "Always use backend key" or not user_key:
-                        label = "Backend Key"
+                if pref == "Always use backend key":
+                    label = "Backend Key"
+                else:
+                     label = "Session key"
 
                 st.caption(f"Using: **{label}**")
             else:
