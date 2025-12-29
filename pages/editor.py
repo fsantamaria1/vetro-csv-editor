@@ -319,7 +319,6 @@ def handle_api_submission(
         update_mode = st.radio(
             "Mode",
             ["Smart Sync (Changes Only)", "Force Push All Rows"],
-            # FIX 1: Set default to Force Push (Index 1)
             index=1,
             horizontal=True,
             help="Smart Sync only sends rows you modified here. Force Push sends the entire file (useful if you edited in Excel).",
@@ -334,7 +333,10 @@ def handle_api_submission(
     else:
         # Force Push: Send the entire DataFrame
         changed_rows = edited_df.copy()
-        changed_rows = changed_rows.fillna("")
+        
+        # Replace NaN with Python None
+        # This ensures the JSON serializer sends 'null' instead of empty strings or errors.
+        changed_rows = changed_rows.astype(object).where(pd.notnull(changed_rows), None)
         
         st.warning(
             f"⚠️ **Force Push Mode**: You are about to update {len(changed_rows)} features. This will overwrite data in Vetro with the values in this table."
