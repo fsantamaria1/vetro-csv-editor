@@ -27,5 +27,5 @@ def get_effective_api_key():
     user_key = st.session_state.get("user_api_key", "")
 
     if pref == "Always use backend key":
-        return backend_key or (user_key or None)
-    return user_key or backend_key or None
+        return backend_key or None
+    return user_key or None
