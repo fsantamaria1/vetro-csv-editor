@@ -1,0 +1,35 @@
+name: Automatic Version Bump
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Commitizen
+        run: pip install commitizen
+
+      - name: Run Commitizen bump
+        run: cz bump --yes
+
+      - name: Push changes and tags
+        run: |
+          git push --follow-tags
