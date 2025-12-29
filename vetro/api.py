@@ -5,7 +5,7 @@ Pandas DataFrames to Vetro feature payloads.
 
 import time
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict
 import requests
 import pandas as pd
 
@@ -19,6 +19,7 @@ class VetroAPIClient:
     Client for Vetro API.
 
     - Uses exponential backoff for retrying transient errors (including 429).
+    - Implements client-side throttling to prevent burst rate limit exhaustion.
     - Separates data conversion for easy unit testing.
     """
 
@@ -27,8 +28,9 @@ class VetroAPIClient:
         api_key: str,
         base_url: str = "https://api.vetro.io/v3",
         request_timeout: int = 30,
-        max_retries: int = 3,
-        initial_backoff: float = 1.0,
+        max_retries: int = 5,
+        initial_backoff: float = 2.0, 
+        delay_between_batches: float = 1.0,
     ):
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
@@ -39,6 +41,7 @@ class VetroAPIClient:
         self.request_timeout = request_timeout
         self.max_retries = max_retries
         self.initial_backoff = initial_backoff
+        self.delay_between_batches = delay_between_batches
 
     def update_features(self, features: List[Dict]) -> Dict:
         """
@@ -148,6 +151,7 @@ class VetroAPIClient:
     ) -> Dict:
         """
         Split DataFrame into batches and call update_features for each.
+        Includes a delay between batches to respect server rate limits.
         """
         total_rows = len(df)
         results = {
@@ -175,6 +179,11 @@ class VetroAPIClient:
 
             if resp.get("success"):
                 results["successful"] += len(batch)
+                
+                # Sleep after a success to let the bucket refill
+                if (start + batch_size) < n:
+                    time.sleep(self.delay_between_batches)
+                    
             else:
                 results["failed"] += len(batch)
                 results["errors"].append(
