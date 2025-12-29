@@ -2,13 +2,13 @@
 Editor page
 """
 
-import os
 from typing import Optional, Tuple
 import streamlit as st
 import pandas as pd
-from decouple import config
 
 from vetro.api import VetroAPIClient
+from vetro.config import get_effective_api_key
+from vetro.state import init_shared_state, sync_storage
 
 st.set_page_config(page_title="Vetro Editor", page_icon="🔧", layout="wide")
 
@@ -114,13 +114,15 @@ FEATURE_TYPE_KEYWORDS = {
 
 
 def init_session_state():
-    """Initialize commonly shared session state keys."""
+    """Initialize session state."""
+    # 1. Initialize shared state (API keys, preferences, vaults)
+    init_shared_state()
+
+    # 2. Initialize editor-specific state
     ss = st.session_state
     ss.setdefault("dataframes", {})
     ss.setdefault("feature_types", {})
     ss.setdefault("current_file", None)
-    ss.setdefault("user_api_key", "")
-    ss.setdefault("key_preference", "Use user key (if set)")
     ss.setdefault("editor_id", 0)
 
 
@@ -134,19 +136,6 @@ def detect_feature_type(filename: str) -> Optional[str]:
         if k in filename_lower:
             return v
     return None
-
-
-def get_effective_api_key() -> Optional[str]:
-    """Determine which API key to use based on preferences."""
-    backend_key = os.environ.get("VETRO_API_KEY", "") or config(
-        "VETRO_API_KEY", default=""
-    )
-    pref = st.session_state.get("key_preference", "Use user key (if set)")
-    user_key = st.session_state.get("user_api_key", "")
-
-    if pref == "Always use backend key (if available)":
-        return backend_key or (user_key or None)
-    return user_key or backend_key or None
 
 
 def compute_diff(
@@ -350,7 +339,10 @@ def handle_api_submission(
             # Generate preview from the sparse dataframe
             preview = client.convert_df_to_features(changed_rows.head(5))
             st.json(
-                {"features": preview, "note": "Preview of first 5 items (Changes Only)"}
+                {
+                    "features": preview,
+                    "note": "Preview of first 5 items (Changes Only)",
+                }
             )
         else:
             st.info("📡 Sending updates...")
@@ -380,6 +372,9 @@ def handle_api_submission(
 
 def main():
     """Main execution function for the editor page."""
+    # Sync storage (Auto-load keys if landing here directly)
+    sync_storage()
+
     st.markdown("# 🔧 :blue[Vetro Feature Layer Editor]")
 
     # 1. Sidebar & File Loading

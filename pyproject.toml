@@ -1,0 +1,8 @@
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "1.2.0"
+version_files = [
+    "vetro/version.py"
+]
+tag_format = "v$version"
+update_changelog = true

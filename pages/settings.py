@@ -3,62 +3,41 @@ Settings page for the Vetro Feature Layer Editor.
 Manages API key configuration using browser localStorage for security.
 """
 
-import os
 import streamlit as st
-from decouple import config
 from vetro.ui import render_sidebar
+from vetro.local_storage import save_key_to_local_storage
+from vetro.config import get_backend_key
 
-# Import custom storage helpers
-from vetro import (
-    load_key_from_local_storage,
-    save_key_to_local_storage,
-    delete_key_from_local_storage,
+# Import our new state manager
+from vetro.state import (
+    init_shared_state,
+    sync_storage,
+    on_key_change,
+    on_clear_key,
+    on_pref_change,
 )
 
 st.set_page_config(page_title="Settings - Vetro Editor", page_icon="⚙️", layout="wide")
 
-
-def init_session_state():
-    """Initialize session state defaults."""
-    if "user_api_key" not in st.session_state:
-        st.session_state.user_api_key = ""
-    if "key_preference" not in st.session_state:
-        st.session_state.key_preference = "Use user key (if set)"
-
-    # Track if we have already checked storage this session
-    if "storage_checked" not in st.session_state:
-        st.session_state.storage_checked = False
-
-
-init_session_state()
+# Initialize and Sync
+init_shared_state()
 render_sidebar()
 
 
 def main():
     """Main execution function for the settings page."""
+    # Run the sync logic (Auto-load & Pending Deletes)
+    sync_storage()
+
     st.title("⚙️ Settings")
     st.markdown("Configure your API connection and application preferences.")
-
-    if not st.session_state.storage_checked:
-        # ========== Auto-load logic ==========
-        stored_key = load_key_from_local_storage()
-
-        if stored_key is not None:
-            if stored_key:
-                st.session_state.user_api_key = stored_key
-                st.rerun()
-
-            st.session_state.storage_checked = True
 
     left_col, right_col = st.columns([2, 1])
 
     with left_col:
         # ========== Backend Key Status ==========
         st.subheader("1. Backend Environment")
-        backend_key = os.environ.get("VETRO_API_KEY", "") or config(
-            "VETRO_API_KEY", default=""
-        )
-
+        backend_key = get_backend_key()
         if backend_key:
             st.success("✅ Backend API key is configured (hidden).")
             st.caption(
@@ -74,36 +53,34 @@ def main():
         st.subheader("2. Your Session Key")
         st.markdown("Override the backend key with your personal API key.")
 
-        key_input = st.text_input(
+        # Widget Key is decoupled from Data Key to prevent deletion on nav
+        st.text_input(
             "Enter Vetro API Key",
-            value=st.session_state.user_api_key,
+            key="widget_user_api_key",
             type="password",
+            on_change=on_key_change,
             help="Your key is stored securely in your browser's LocalStorage.",
             placeholder="Ex: Token 12345...",
         )
 
-        col_save, col_clear = st.columns([1, 4])
+        col_save, col_clear = st.columns([1, 1])
 
         with col_save:
             if st.button("💾 Save Key", type="primary"):
-                if key_input:
-                    st.session_state.user_api_key = key_input
-                    save_key_to_local_storage(key_input)
+                if st.session_state.user_api_key:
+                    save_key_to_local_storage(
+                        st.session_state.user_api_key, "vetro_api_key"
+                    )
                     st.success("Key saved to browser!")
-                    st.rerun()
                 else:
                     st.error("Enter a key first.")
 
         with col_clear:
-            if st.session_state.user_api_key:
-                if st.button("🗑️ Clear Key"):
-                    st.session_state.user_api_key = ""
-                    delete_key_from_local_storage()
-                    st.warning("Key removed from browser and session.")
-                    st.rerun()
+            st.button("🗑️ Clear Key", on_click=on_clear_key)
 
         # Visual Feedback
-        if st.session_state.user_api_key:
+        # Only show this if the key actually came from the browser storage
+        if st.session_state.user_api_key and st.session_state.loaded_from_storage:
             current_key = st.session_state.user_api_key
             if len(current_key) > 8:
                 masked = f"{current_key[:4]}...{current_key[-4:]}"
@@ -117,20 +94,29 @@ def main():
         with st.container(border=True):
             st.subheader("Preferences")
 
-            pref = st.radio(
+            # Determine index safely for the radio button
+            pref_options = ["Use user key (if set)", "Always use backend key"]
+            try:
+                # We check the WIDGET key here to ensure consistency
+                curr_val = st.session_state.get(
+                    "widget_key_preference", pref_options[0]
+                )
+                curr_index = pref_options.index(curr_val)
+            except ValueError:
+                curr_index = 0
+
+            st.radio(
                 "Priority Logic",
-                options=["Use user key (if set)", "Always use backend key"],
-                index=(
-                    0
-                    if st.session_state.key_preference == "Use user key (if set)"
-                    else 1
-                ),
+                options=pref_options,
+                key="widget_key_preference",
+                index=curr_index,
+                on_change=on_pref_change,
                 help="Decide which key takes precedence if both are available.",
             )
-            st.session_state.key_preference = pref
 
             st.markdown("---")
 
+            pref = st.session_state.key_preference
             active_key = (
                 backend_key
                 if pref == "Always use backend key"

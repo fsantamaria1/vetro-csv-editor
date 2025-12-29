@@ -3,14 +3,18 @@ Root page for the Vetro Feature Layer Editor app.
 This servers as the Home/Welcome screen.
 """
 
-import os
 import streamlit as st
-from decouple import config
 from vetro.ui import render_sidebar
+from vetro.config import get_backend_key
+from vetro.state import init_shared_state, sync_storage
 
 st.set_page_config(
     page_title="Vetro Feature Layer Editor", page_icon="🔧", layout="wide"
 )
+
+# Initialize session state & sync browser storage
+init_shared_state()
+sync_storage()
 
 render_sidebar()
 
@@ -29,9 +33,7 @@ def main():
     )
 
     # Check if backend API key is configured
-    backend_key = os.environ.get("VETRO_API_KEY", "") or config(
-        "VETRO_API_KEY", default=""
-    )
+    backend_key = get_backend_key()
     if backend_key:
         st.success("✅ Backend API key available (hidden).")
         st.caption("This does not expose the key. ")
