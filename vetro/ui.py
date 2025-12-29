@@ -3,7 +3,7 @@ Shared UI components using native Streamlit elements.
 """
 
 import streamlit as st
-from vetro.config import get_backend_key
+from vetro.config import get_backend_key, get_effective_api_key
 from vetro.version import __version__
 
 
@@ -24,19 +24,27 @@ def render_sidebar():
     with st.sidebar:
 
         # 2. Status Widget
-        backend_key = get_backend_key()
-        user_key = st.session_state.get("user_api_key")
+        active_key = get_effective_api_key()
 
         st.subheader("🔌 Connection")
 
         with st.container(border=True):
-            if user_key or backend_key:
+            if active_key:
                 st.markdown("**:green[● Online]**")
 
-                if user_key:
-                    st.caption("Using: **Session Key**")
-                else:
-                    st.caption("Using: **Backend Key**")
+                # Determine the correct label for the UI
+                backend_key = get_backend_key()
+                user_key = st.session_state.get("user_api_key")
+                pref = st.session_state.get("key_preference")
+
+                # Default label
+                label = "Session key"
+
+                if active_key == backend_key:
+                    if pref == "Always use backend key" or not user_key:
+                        label = "Backend Key"
+
+                st.caption(f"Using: **{label}**")
             else:
                 st.markdown("**:red[● Offline]**")
                 st.caption("Please configure settings")
@@ -61,4 +69,4 @@ def render_sidebar():
         # )
 
         # st.divider()
-        st.caption(__version__)
+        st.caption(f"v{__version__}")
