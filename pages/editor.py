@@ -314,9 +314,31 @@ def handle_api_submission(
     if not effective_key:
         return
 
-    changed_rows = get_changed_rows(diff_df, edited_df)
-    if changed_rows.empty:
-        return
+    # Allow users to choose between Smart Sync (Diff) or Force Push (Bulk)
+    with st.expander("⚙️ Update Strategy", expanded=True):
+        update_mode = st.radio(
+            "Mode",
+            ["Smart Sync (Changes Only)", "Force Push All Rows"],
+            # FIX 1: Set default to Force Push (Index 1)
+            index=1,
+            horizontal=True,
+            help="Smart Sync only sends rows you modified here. Force Push sends the entire file (useful if you edited in Excel).",
+        )
+
+    # Logic to select which rows to send
+    if update_mode == "Smart Sync (Changes Only)":
+        changed_rows = get_changed_rows(diff_df, edited_df)
+        if changed_rows.empty:
+            st.info("✅ No changes detected to sync.")
+            return
+    else:
+        # Force Push: Send the entire DataFrame
+        changed_rows = edited_df.copy()
+        changed_rows = changed_rows.fillna("")
+        
+        st.warning(
+            f"⚠️ **Force Push Mode**: You are about to update {len(changed_rows)} features. This will overwrite data in Vetro with the values in this table."
+        )
 
     # Count unique features being updated
     feature_count = len(changed_rows)
@@ -341,7 +363,7 @@ def handle_api_submission(
             st.json(
                 {
                     "features": preview,
-                    "note": "Preview of first 5 items (Changes Only)",
+                    "note": f"Preview of first 5 items ({update_mode})",
                 }
             )
         else:
