@@ -18,6 +18,10 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: main
+
+      - name: Clean workspace
+        run: git clean -fdx
 
       - name: Set up Python
         uses: actions/setup-python@v5
