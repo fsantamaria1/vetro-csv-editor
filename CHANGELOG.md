@@ -42,3 +42,44 @@
 - Initial settings page
 - Initial README
 - Project initialization and first working version
+
+## v1.8.0 (2026-01-05)
+
+### Feat
+
+- **editor**: enforce strict pole data types for api compliance
+- **editor**: add force push mode with null value support
+- **api**: support explicit null values in feature conversion
+- **editor**: Add an option for a force push all rows in the editor
+- **config**: add helper to resolve active api key based on user preference
+
+### Fix
+
+- **editor**: enforce integer type for Entry Order field
+- **api**: support native int and bool types in json payload
+- **api**: add client-side throttling and increase retries
+- **main**: add session state initialization to prevent data loss on refresh
+- **ui**: simplify status label logic based on strict preferences
+- **config**: enforce strict api key preference logic
+- **ui**: ensure connection status reflects active key preference
+
+### Refactor
+
+- **editor**: Removed and remaned columns in the 'Pole' feature list
+- **editor**: use centralized api key resolution logic
+
+## v1.2.0 (2025-12-23)
+
+### Feat
+
+- **state**: implement robust shared session state with navigation safety
+
+### Fix
+
+- **settings**: decouple settings widgets from data variables to persist state
+
+### Refactor
+
+- **editor**: integrate editor page with centralized shared state
+
+## v1.1.0 (2025-12-23)
