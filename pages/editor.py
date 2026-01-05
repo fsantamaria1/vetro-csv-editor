@@ -5,6 +5,7 @@ Editor page
 from typing import Optional, Tuple
 import streamlit as st
 import pandas as pd
+from pandas.errors import ParserError
 
 from vetro.api import VetroAPIClient
 from vetro.config import get_effective_api_key
@@ -112,6 +113,17 @@ FEATURE_TYPE_KEYWORDS = {
     "pole": "Pole",
 }
 
+# Define strict data types for columns that are not strings
+COLUMN_TYPE_OVERRIDES = {
+    "Pole": {
+        "Height": "int",
+        "Permitted": "bool",
+        "Surveyed": "bool",
+        "Age": "int",
+    },
+    "Service Location": {"Build": "bool"},
+}
+
 
 def init_session_state():
     """Initialize session state."""
@@ -136,6 +148,50 @@ def detect_feature_type(filename: str) -> Optional[str]:
         if k in filename_lower:
             return v
     return None
+
+
+def enforce_column_types(df: pd.DataFrame, feature_type: str) -> pd.DataFrame:
+    """
+    Convert specific columns to their required API types (int, bool).
+    Handles cleaning of messy CSV data (e.g., "Yes" -> True, "45.0" -> 45).
+    """
+    if not feature_type or feature_type not in COLUMN_TYPE_OVERRIDES:
+        return df
+
+    type_map = COLUMN_TYPE_OVERRIDES[feature_type]
+    df_clean = df.copy()
+
+    for col, dtype in type_map.items():
+        if col not in df_clean.columns:
+            continue
+
+        # Handle Integers
+        if dtype == "int":
+            # Coerce errors to NaN, then fill with None for the API
+            # This ensures "45.0" becomes 45, and garbage strings become null (safe)
+            numeric_series = pd.to_numeric(df_clean[col], errors="coerce")
+
+            # Convert to Python int objects (or None)
+            df_clean[col] = numeric_series.apply(
+                lambda x: int(x) if pd.notna(x) else None
+            )
+
+        # Handle Booleans
+        elif dtype == "bool":
+
+            def parse_bool(x):
+                if pd.isna(x) or x == "":
+                    return None
+                s = str(x).lower().strip()
+                if s in ["true", "1", "yes", "y", "t"]:
+                    return True
+                if s in ["false", "0", "no", "n", "f"]:
+                    return False
+                return None  # Invalid/Unknown becomes None
+
+            df_clean[col] = df_clean[col].apply(parse_bool)
+
+    return df_clean
 
 
 def compute_diff(
@@ -209,6 +265,7 @@ def get_changed_rows(
         # Reset index so 'vetro_id' becomes a regular column again
         delta_df.reset_index(inplace=True)
         return delta_df
+
     changed_indices = set(diff_df["row_index"].unique())
     return edited_df.iloc[list(changed_indices)].copy()
 
@@ -231,7 +288,7 @@ def handle_file_upload():
                             f.name
                         )
                         st.success(f"✅ Loaded {f.name} ({len(df)} rows)")
-                    except Exception as e:  # pylint: disable=broad-exception-caught
+                    except (ParserError, UnicodeDecodeError, ValueError) as e:
                         st.error(f"❌ Failed to load {f.name}: {e}")
 
         if st.session_state["dataframes"]:
@@ -247,8 +304,8 @@ def handle_file_upload():
 
         st.divider()
         # Return batch size as it's needed for the API
-        return st.slider("Batch size", min_value=1, max_value=50, value=10)
-    return 10
+        return st.slider("Batch size", min_value=1, max_value=100, value=50)
+    return 50
 
 
 def render_data_editor(current_file: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
@@ -321,7 +378,8 @@ def handle_api_submission(
             ["Smart Sync (Changes Only)", "Force Push All Rows"],
             index=1,
             horizontal=True,
-            help="Smart Sync only sends rows you modified here. Force Push sends the entire file (useful if you edited in Excel).",
+            help="""Smart Sync only sends rows you modified here.
+            Force Push sends the entire file (useful if you edited in Excel).""",
         )
 
     # Logic to select which rows to send
@@ -333,16 +391,21 @@ def handle_api_submission(
     else:
         # Force Push: Send the entire DataFrame
         changed_rows = edited_df.copy()
-        
+
         # Replace NaN with Python None
         # This ensures the JSON serializer sends 'null' instead of empty strings or errors.
         changed_rows = changed_rows.astype(object).where(pd.notnull(changed_rows), None)
-        
+
         st.warning(
-            f"⚠️ **Force Push Mode**: You are about to update {len(changed_rows)} features. This will overwrite data in Vetro with the values in this table."
+            f"""⚠️ **Force Push Mode**: You are about to update {len(changed_rows)} features.
+            This will overwrite data in Vetro with the values in this table."""
         )
 
-    # Count unique features being updated
+    # Enforce Column Data Types (Int/Bool)
+    feature_type = st.session_state["feature_types"].get(current_file)
+    if feature_type:
+        changed_rows = enforce_column_types(changed_rows, feature_type)
+
     feature_count = len(changed_rows)
     st.info(f"Ready to update {feature_count} features.")
 
@@ -384,7 +447,7 @@ def handle_api_submission(
                 # Update master dataframe
                 st.session_state["dataframes"][current_file].update(edited_df)
                 st.session_state["editor_id"] += 1
-                st.rerun()
+                # st.rerun()
             else:
                 st.warning(
                     f"⚠️ Partial success: {results['successful']} ok, {results['failed']} failed."
