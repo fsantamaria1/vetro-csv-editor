@@ -43,6 +43,12 @@
 - Initial README
 - Project initialization and first working version
 
+## v1.8.1 (2026-01-05)
+
+### Fix
+
+- **ci**: force changelog addition in release workflow
+
 ## v1.8.0 (2026-01-05)
 
 ### Feat
