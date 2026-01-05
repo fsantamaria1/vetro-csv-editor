@@ -37,7 +37,10 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Run Commitizen bump
-        run: cz bump --yes
+        run: |
+          cz bump --yes --changelog
+          git add -f CHANGELOG.md
+          git commit --amend --no-edit
 
       - name: Debug - Show status and diff
         run: |
