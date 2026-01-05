@@ -37,10 +37,34 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Run Commitizen bump
+        id: cz_bump
         run: |
+          # Disable automatic exit on error to handle return codes manually
+          set +e 
+          
+          # Run bump. 
+          # Exit code 0  = Successful Bump
+          # Exit code 21 = No bumpable commits (skipped)
+          # Exit code 3  = No commits found (skipped)
           cz bump --yes --changelog
-          git add -f CHANGELOG.md
-          git commit --amend --no-edit
+          exit_code=$?
+          
+          if [ $exit_code -eq 0 ]; then
+            echo "Bump successful!"
+            echo "bumped=true" >> $GITHUB_OUTPUT
+            exit 0
+          elif [ $exit_code -eq 21 ]; then
+            echo "No bumpable commits (Exit code 21). Skipping."
+            echo "bumped=false" >> $GITHUB_OUTPUT
+            exit 0
+          elif [ $exit_code -eq 3 ]; then
+             echo "No commits found (Exit code 3). Skipping."
+             echo "bumped=false" >> $GITHUB_OUTPUT
+             exit 0
+          else
+            echo "Commitizen failed with exit code $exit_code"
+            exit 1
+          fi
 
       - name: Debug - Show status and diff
         run: |
@@ -50,5 +74,7 @@ jobs:
           git diff HEAD -- CHANGELOG.md || echo "Changelog not found in diff"
 
       - name: Push changes and tags
+        if: steps.cz_bump.outputs.bumped == 'true'
         run: |
-          git push --follow-tags
+          # Explicitly push the current commit (HEAD) AND all tags
+          git push origin HEAD --tags
