@@ -20,8 +20,6 @@ FEATURE_COLUMNS = {
         "Location",
         "Name",
         "Notes",
-        "Size",
-        "Type",
         "RUS Code",
         "vetro_id",
     ],
