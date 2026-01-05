@@ -1,3 +1,9 @@
+## v1.9.0 (2026-01-05)
+
+### Feat
+
+- **editor**: add column data types for the remaining layers
+
 ## v1.8.1 (2026-01-05)
 
 ### Fix
