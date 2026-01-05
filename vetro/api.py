@@ -29,7 +29,7 @@ class VetroAPIClient:
         base_url: str = "https://api.vetro.io/v3",
         request_timeout: int = 30,
         max_retries: int = 5,
-        initial_backoff: float = 2.0, 
+        initial_backoff: float = 2.0,
         delay_between_batches: float = 1.0,
     ):
         self.api_key = api_key
@@ -179,11 +179,11 @@ class VetroAPIClient:
 
             if resp.get("success"):
                 results["successful"] += len(batch)
-                
+
                 # Sleep after a success to let the bucket refill
                 if (start + batch_size) < n:
                     time.sleep(self.delay_between_batches)
-                    
+
             else:
                 results["failed"] += len(batch)
                 results["errors"].append(
@@ -199,28 +199,28 @@ class VetroAPIClient:
         return results
 
     def convert_df_to_features(self, df: pd.DataFrame) -> List[Dict]:
-        """
-        Convert DataFrame rows to the Vetro 'Feature' JSON payload.
-        Only includes properties (no geometry).
-        Skips columns named 'vetro_id' and any column starting with 'v_'.
-        
-        Updated logic: Preserves explicit None values (sending them as null).
-        """
+        """Convert DataFrame to Vetro JSON payload, preserving types."""
         features = []
         for _, row in df.iterrows():
             properties = {}
             for col in df.columns:
                 if col == "vetro_id" or str(col).startswith("v_"):
-                    continue             
+                    continue
                 val = row[col]
-                
-                # Check for explicit None (passed from Force Push logic)
+
+                # 1. Explicit None -> JSON null
                 if val is None:
                     properties[col] = None
-                
-                # Check for existing data (Strings, numbers, etc.)
+
+                # 2. Valid data -> Check type
                 elif pd.notna(val):
-                    properties[col] = str(val)
+                    # If it is already a valid JSON primitive, send as-is
+                    if isinstance(val, (int, float, bool)):
+                        properties[col] = val
+                    # Otherwise, safe string conversion
+                    else:
+                        properties[col] = str(val)
+
             vetro_id = row.get("vetro_id")
             feature = {
                 "type": "Feature",
