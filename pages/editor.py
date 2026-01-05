@@ -61,7 +61,6 @@ FEATURE_COLUMNS = {
         "Name",
         "Owner",
         "Location",
-        "Links",
         "Structure ID",
         "Note",
         "Build",
@@ -117,6 +116,11 @@ COLUMN_TYPE_OVERRIDES = {
         "Entry Order": "int",
     },
     "Service Location": {"Build": "bool"},
+    "Handhole": {"Build": "bool"},
+    "Aerial Splice Closure": {
+        "Build": "bool",
+        "HO 1": "int",
+    },
 }
 
 
