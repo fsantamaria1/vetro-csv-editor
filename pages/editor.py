@@ -114,6 +114,7 @@ COLUMN_TYPE_OVERRIDES = {
         "Permitted": "bool",
         "Surveyed": "bool",
         "Age": "int",
+        "Entry Order": "int",
     },
     "Service Location": {"Build": "bool"},
 }
