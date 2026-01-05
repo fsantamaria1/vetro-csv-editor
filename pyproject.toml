@@ -6,3 +6,4 @@ version_files = [
 ]
 tag_format = "v$version"
 update_changelog = true
+changelog_file = "CHANGELOG.md"

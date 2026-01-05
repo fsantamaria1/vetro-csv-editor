@@ -39,6 +39,13 @@ jobs:
       - name: Run Commitizen bump
         run: cz bump --yes
 
+      - name: Debug - Show status and diff
+        run: |
+          echo "Status after bump:"
+          git status
+          echo "Diff of changelog:"
+          git diff HEAD -- CHANGELOG.md || echo "Changelog not found in diff"
+
       - name: Push changes and tags
         run: |
           git push --follow-tags
