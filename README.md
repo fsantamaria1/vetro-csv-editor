@@ -3,28 +3,23 @@
 A Streamlit-based GUI application for editing and updating Vetro feature layer properties via CSV files.
 
 ## 🌟 Features
-- **Interactive Editor:** Excel-like editing with drag-fill support.
-- **Secure Configuration:** Browser-based local storage for API keys.
-- **Modern UI:** Clean sidebar navigation with status indicators.
-- **Vetro API Integration:** Robust client with exponential backoff and retry logic.
 
 - 📁 **Multi-file CSV management** - Upload and edit multiple CSV files simultaneously
 - ✏️ **Interactive editing** - Edit cells, add/delete rows with data validation
 - 🧠 **Persistent Session State** - API keys and preferences are saved securely and survive page refreshes
 - 🎯 **Feature type detection** - Automatically detects and configures columns based on feature type
 - 🔍 **Advanced filtering** - Search and filter data by any column
-- 🚀 **API integration** - Batch update features with intelligent rate limiting
+- 🚀 **Smart API Integration**
+    - **Throttling:** Automatically pauses between batches to respect rate limits (1 req/sec).
+    - **Robust Retries:** Automatically switches to row-by-row updates if a batch fails (isolating "poison" data).
+    - **Type Enforcement:** Automatically converts columns like `Height` (int) and `Permitted` (bool) to the correct JSON types.
+- 🔄 **Update Strategies** - Choose between "Smart Sync" (changes only) or "Force Push" (bulk update all rows).
 - 💾 **Export options** - Download edited files as CSV or JSON
 - 🎯 **Dry run mode** - Preview API payloads before sending
 - 📊 **Progress tracking** - Monitor batch update progress in real-time
 - 🔒 **Backend API key support** - Configure once via environment variable
 
 ## 📋 Supported Feature Types
-- Flower Pot Dead End
-- Service Location
-- Handhole
-- Aerial Splice Closure
-- Pole
 
 | Feature Type | Columns |
 |-------------|---------|
@@ -128,7 +123,7 @@ set VETRO_API_KEY=your_api_key_here     # Windows
 3. Select one or more CSV files.
 4. Files are automatically loaded and feature type is detected.
 
-**Note: ** Only CSV in UTF-8 format are supported at this time
+**Note: ** Only CSV in UTF-8 format are supported at this time.
 
 **CSV Requirements:**
 
@@ -155,10 +150,9 @@ set VETRO_API_KEY=your_api_key_here     # Windows
 
 **API Update Tab:**
 
-1. **Review Summary:**
-* Check number of features to update.
-* Review editable properties.
-* Verify batch size.
+1. **Select Strategy:**
+* **Force Push (Default):** Updates ALL rows in the table. Recommended for bulk edits.
+* **Smart Sync:** Only updates rows that have changed in the editor.
 
 
 2. **Dry Run (Recommended first):**
@@ -177,6 +171,7 @@ set VETRO_API_KEY=your_api_key_here     # Windows
 **What Gets Updated:**
 
 * ✅ All properties (columns) except `vetro_id` and `v_*` columns
+* ✅ **Type Conversion:** Fields like `Height` are automatically sent as Integers; `Permitted` as Booleans.
 * ❌ Geometry is NOT modified
 * ❌ x-vetro fields (layer_id, plan_id, etc.) are NOT modified
 
@@ -195,9 +190,12 @@ set VETRO_API_KEY=your_api_key_here     # Windows
 | **Batch Size** | 10 | Number of features per API call |
 | **Priority Logic** | Use User Key | Decide which key takes precedence if both Backend and User keys exist |
 
-### Rate Limits
+### Rate Limits & Throttling
 
-The application automatically handles Vetro API rate limits:
+The application automatically handles Vetro API limits:
+
+* **Throttling:** Adds a ~1.5s delay between batches to stay under the limit.
+* **Retry Logic:** Retries failed requests up to 5 times with exponential backoff.
 
 | Token Type | Rate Limit |
 | --- | --- |
@@ -225,7 +223,7 @@ vetro_editor/
 ├── docker-compose.yml          # Docker services configuration
 ├── .dockerignore               # Files to exclude from Docker build
 ├── requirements.txt            # Python dependencies
-├── CHANGELOG.md            # Python dependencies
+├── CHANGELOG.md                # Change history
 └── README.md                   # This file
 
 ```
@@ -252,19 +250,27 @@ Access at: http://localhost:8502
 
 **Solution:** This is likely a caching issue. The application uses a robust state management system (`vetro/state.py`). Ensure you are running the latest version of the code and that your browser allows LocalStorage.
 
-### Rate Limit Errors
+### Rate Limit Errors / 500 Errors
 
-**Problem:** Getting 429 Too Many Requests
+**Problem:** Updates are failing with 429 or 500 errors.
 
 **Solutions:**
 
-* Wait 10 seconds before retrying.
-* Reduce batch size in the Editor sidebar.
-* Consider using an Integration token for higher limits.
+* Check the logs for error messages.
+* Ensure your CSV data types match expectation (e.g., `Height` should be a number).
+
+### Payload Too Large
+
+**Problem:** The update fails (often with a 413 error) because the JSON payload exceeds the API's maximum size limit. This usually happens when rows contain very large text fields or when the batch size is too high.
+
+**Solution:** Reduce the **Batch Size** in the sidebar (e.g., lower it from 100 to 50) and try again.
+
 
 ## 📝 API Reference
 
 ### Vetro API Endpoint
+
+
 
 ```
 PATCH [https://api.vetro.io/v3/features](https://api.vetro.io/v3/features)
@@ -281,3 +287,4 @@ PATCH [https://api.vetro.io/v3/features](https://api.vetro.io/v3/features)
 | 403 | Forbidden - Insufficient permissions |
 | 404 | Not Found - Feature doesn't exist |
 | 429 | Too Many Requests - Rate limit exceeded |
+| 500 | Server Error - Often caused by bad data types |
