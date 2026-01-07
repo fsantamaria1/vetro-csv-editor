@@ -480,13 +480,12 @@ def handle_api_submission(
                 st.session_state["dataframes"][current_file].update(edited_df)
                 st.session_state["editor_id"] += 1
                 # st.rerun()
+            elif results["successful"] == 0:
+                st.error(f"❌ Update Failed: 0 ok, {results['failed']} failed.")
             else:
                 st.warning(
                     f"⚠️ Partial success: {results['successful']} ok, {results['failed']} failed."
                 )
-                if results.get("errors"):
-                    with st.expander("View Errors"):
-                        st.write(results["errors"])
 
 
 def main():
