@@ -27,9 +27,9 @@ class VetroAPIClient:
         self,
         api_key: str,
         base_url: str = "https://api.vetro.io/v3",
-        request_timeout: int = 30,
-        max_retries: int = 5,
-        initial_backoff: float = 2.0,
+        request_timeout: int = 20,
+        max_retries: int = 3,
+        initial_backoff: float = 1.5,
         delay_between_batches: float = 1.0,
     ):
         self.api_key = api_key
@@ -194,7 +194,7 @@ class VetroAPIClient:
                     break
 
             if progress_callback:
-                progress_callback(min((start + batch_size) / n, 1.0))
+                progress_callback(min((start + batch_size) / n, 1.0), results)
 
         return results
 
