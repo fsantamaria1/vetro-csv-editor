@@ -301,7 +301,17 @@ def handle_file_upload():
 
         st.divider()
         # Return batch size as it's needed for the API
-        return st.slider("Batch size", min_value=1, max_value=100, value=50)
+        return st.slider(
+            "Batch Size (Features per Request)",
+            min_value=1,
+            max_value=100,
+            value=50,
+            help="""
+            Determines how many rows are sent to the API in a single call.
+            - **Default (50):** Good for most updates.
+            - **Lower (10-20):** Use if you encounter '413 (Payload Too Large)' or '500' errors.
+            """,
+        )
     return 50
 
 
