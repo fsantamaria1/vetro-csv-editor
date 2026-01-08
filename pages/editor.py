@@ -301,7 +301,17 @@ def handle_file_upload():
 
         st.divider()
         # Return batch size as it's needed for the API
-        return st.slider("Batch size", min_value=1, max_value=100, value=50)
+        return st.slider(
+            "Batch Size (Features per Request)",
+            min_value=1,
+            max_value=100,
+            value=50,
+            help="""
+            Determines how many rows are sent to the API in a single call.
+            - **Default (50):** Good for most updates.
+            - **Lower (10-20):** Use if you encounter '413 (Payload Too Large)' or '500' errors.
+            """,
+        )
     return 50
 
 
@@ -429,14 +439,49 @@ def handle_api_submission(
                 }
             )
         else:
-            st.info("📡 Sending updates...")
+            # Progress dashboard
+            st.divider()
+            st.markdown("### 📡 Update Progress")
+
+            # Create placeholders
             prog_bar = st.progress(0)
 
-            def cb(p):
-                prog_bar.progress(p)
+            # Metrics Columns
+            m_col1, m_col2, m_col3 = st.columns(3)
+            with m_col1:
+                success_metric = st.empty()
+            with m_col2:
+                fail_metric = st.empty()
+            with m_col3:
+                pct_metric = st.empty()
 
+            # Error Log Placeholder (will appear if errors exist)
+            error_log_placeholder = st.empty()
+
+            # Initialize Metrics
+            success_metric.metric("✅ Success", 0)
+            fail_metric.metric("❌ Failed", 0)
+            pct_metric.metric("⏳ Progress", "0%")
+
+            # Define the callback to update the UI
+            def update_dashboard(percent_complete, stats):
+                """Callback to update Streamlit widgets live."""
+                prog_bar.progress(percent_complete)
+
+                success_metric.metric("✅ Success", stats["successful"])
+                fail_metric.metric("❌ Failed", stats["failed"])
+                pct_metric.metric("⏳ Progress", f"{int(percent_complete * 100)}%")
+
+                # Render Errors LIVE as they happen
+                if stats["errors"]:
+                    with error_log_placeholder.container():
+                        with st.expander("🚨 Error Log", expanded=True):
+                            st.error(f"Errors detected so far: {len(stats['errors'])}")
+                            st.dataframe(pd.DataFrame(stats["errors"]), width="stretch")
+
+            # Run the update with the new callback
             results = client.batch_update_features(
-                changed_rows, batch_size=batch_size, progress_callback=cb
+                changed_rows, batch_size=batch_size, progress_callback=update_dashboard
             )
 
             if results.get("failed", 0) == 0 and not results.get("rate_limited"):
@@ -445,13 +490,12 @@ def handle_api_submission(
                 st.session_state["dataframes"][current_file].update(edited_df)
                 st.session_state["editor_id"] += 1
                 # st.rerun()
+            elif results["successful"] == 0:
+                st.error(f"❌ Update Failed: 0 ok, {results['failed']} failed.")
             else:
                 st.warning(
                     f"⚠️ Partial success: {results['successful']} ok, {results['failed']} failed."
                 )
-                if results.get("errors"):
-                    with st.expander("View Errors"):
-                        st.write(results["errors"])
 
 
 def main():
