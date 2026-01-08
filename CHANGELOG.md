@@ -1,3 +1,9 @@
+## v1.10.0 (2026-01-08)
+
+### Feat
+
+- add live progress dashboard and real-time error logging (#33)
+
 ## v1.9.0 (2026-01-05)
 
 ### Feat
