@@ -1,3 +1,9 @@
+## v1.10.1 (2026-01-12)
+
+### Fix
+
+- **editor**: Remove boolean type from the Build property of multiple feature layers (#35)
+
 ## v1.10.0 (2026-01-08)
 
 ### Feat
