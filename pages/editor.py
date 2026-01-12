@@ -113,10 +113,7 @@ COLUMN_TYPE_OVERRIDES = {
         "Age": "int",
         "Entry Order": "int",
     },
-    "Service Location": {"Build": "bool"},
-    "Handhole": {"Build": "bool"},
     "Aerial Splice Closure": {
-        "Build": "bool",
         "HO 1": "int",
     },
 }
