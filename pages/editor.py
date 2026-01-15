@@ -347,9 +347,34 @@ def handle_file_upload():
 def render_data_editor(current_file: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """Render the main data editor widget and return (edited_df, diff_df)."""
     original_df = st.session_state["dataframes"][current_file]
-    feature_type = st.session_state["feature_types"].get(current_file)
+    current_type = st.session_state["feature_types"].get(current_file)
 
     st.markdown(f"## Editing: **{current_file}**")
+
+    # Create list of options
+    options = list(FEATURE_COLUMNS.keys())
+
+    try:
+        idx = options.index(current_type) if current_type in options else None
+    except ValueError:
+        idx = None
+
+    # If no type detected, user sees placeholder
+    selected_type = st.selectbox(
+        "Feature Type Configuration",
+        options=options,
+        index=idx,
+        placeholder="Select feature type...",
+        help="Select the Vetro feature type to enable column filtering and type enforcement.",
+    )
+
+    # If user changed the type manually, update session state and rerun to apply
+    if selected_type != current_type:
+        st.session_state["feature_types"][current_file] = selected_type
+        st.rerun()
+
+    feature_type = selected_type
+
     if feature_type:
         st.info(f"🎯 Detected feature type: {feature_type}")
 
