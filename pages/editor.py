@@ -2,7 +2,7 @@
 Editor page
 """
 
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 import streamlit as st
 import pandas as pd
 from pandas.errors import ParserError
@@ -135,12 +135,41 @@ def init_session_state():
 init_session_state()
 
 
-def detect_feature_type(filename: str) -> Optional[str]:
-    """Detect feature type from filename using keyword matching."""
+def detect_feature_type(filename: str, columns: List[str] = None) -> Optional[str]:
+    """
+    Detect feature type using a cascading strategy:
+    1. Keyword matching on filename (Fastest).
+    2. Strict match: Check if the CSV contains ALL columns defined for a type (High Confidence).
+    3. Heuristic: Count column overlaps for partial updates (Fallback).
+    """
+    # Filename matching
     filename_lower = filename.lower()
     for k, v in FEATURE_TYPE_KEYWORDS.items():
         if k in filename_lower:
             return v
+
+    if columns:
+        df_cols_set = set(columns)
+
+        # Strict Column name matching
+        for f_type, known_cols in FEATURE_COLUMNS.items():
+            if set(known_cols).issubset(df_cols_set):
+                return f_type
+
+        # Heuristic / Partial Match
+        best_match = None
+        max_score = 0
+
+        for f_type, f_cols in FEATURE_COLUMNS.items():
+            overlap = len(df_cols_set.intersection(set(f_cols)))
+            # Require at least 3 matching columns to avoid false positives
+            if overlap > max_score and overlap >= 3:
+                max_score = overlap
+                best_match = f_type
+
+        if best_match:
+            return best_match
+
     return None
 
 
@@ -278,10 +307,13 @@ def handle_file_upload():
                     try:
                         df = pd.read_csv(f)
                         st.session_state["dataframes"][f.name] = df
-                        st.session_state["feature_types"][f.name] = detect_feature_type(
-                            f.name
-                        )
-                        st.success(f"✅ Loaded {f.name} ({len(df)} rows)")
+                        detected_type = detect_feature_type(f.name, df.columns.tolist())
+                        st.session_state["feature_types"][f.name] = detected_type
+
+                        msg = f"✅ Loaded {f.name}"
+                        if detected_type:
+                            msg += f" (Detected: {detected_type})"
+                        st.success(msg)
                     except (ParserError, UnicodeDecodeError, ValueError) as e:
                         st.error(f"❌ Failed to load {f.name}: {e}")
 
