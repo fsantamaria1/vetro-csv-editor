@@ -307,13 +307,14 @@ def handle_file_upload():
                     try:
                         df = pd.read_csv(f)
                         st.session_state["dataframes"][f.name] = df
+
                         detected_type = detect_feature_type(f.name, df.columns.tolist())
                         st.session_state["feature_types"][f.name] = detected_type
 
-                        msg = f"✅ Loaded {f.name}"
                         if detected_type:
-                            msg += f" (Detected: {detected_type})"
-                        st.success(msg)
+                            st.success(f"✅ Loaded {f.name}")
+                        else:
+                            st.warning(f"⚠️ Loaded {f.name} (Type Unknown)")
                     except (ParserError, UnicodeDecodeError, ValueError) as e:
                         st.error(f"❌ Failed to load {f.name}: {e}")
 
@@ -352,21 +353,24 @@ def render_data_editor(current_file: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
     st.markdown(f"## Editing: **{current_file}**")
 
     # Create list of options
-    options = list(FEATURE_COLUMNS.keys())
+    col_config, col_status = st.columns([1, 1])
 
-    try:
-        idx = options.index(current_type) if current_type in options else None
-    except ValueError:
-        idx = None
+    with col_config:
+        options = list(FEATURE_COLUMNS.keys())
 
-    # If no type detected, user sees placeholder
-    selected_type = st.selectbox(
-        "Feature Type Configuration",
-        options=options,
-        index=idx,
-        placeholder="Select feature type...",
-        help="Select the Vetro feature type to enable column filtering and type enforcement.",
-    )
+        try:
+            idx = options.index(current_type) if current_type in options else None
+        except ValueError:
+            idx = None
+
+        # If no type detected, user sees placeholder
+        selected_type = st.selectbox(
+            "Feature Type Configuration",
+            options=options,
+            index=idx,
+            placeholder="Select feature type...",
+            help="Select the Vetro feature type to enable column filtering and type enforcement.",
+        )
 
     # If user changed the type manually, update session state and rerun to apply
     if selected_type != current_type:
@@ -375,8 +379,19 @@ def render_data_editor(current_file: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
 
     feature_type = selected_type
 
-    if feature_type:
-        st.info(f"🎯 Detected feature type: {feature_type}")
+    with col_status:
+
+        if feature_type:
+            auto_match = detect_feature_type(current_file, original_df.columns.tolist())
+
+            if feature_type == auto_match:
+                st.info(f"🎯 Auto-detected: **{feature_type}**")
+            else:
+                st.success(f"✅ Manual Configuration: **{feature_type}**")
+        else:
+            st.warning("⚠️ **Unknown Type.** Please select a feature type to edit.")
+
+    st.divider()
 
     # Determine columns
     if feature_type and feature_type in FEATURE_COLUMNS:
