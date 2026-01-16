@@ -1,3 +1,14 @@
+## v1.11.0 (2026-01-16)
+
+### Feat
+
+- **editor**: add manual feature type selection dropdown
+- **editor**: implement column-based feature detection strategies
+
+### Fix
+
+- **editor**: improve feature selection layout and status feedback
+
 ## v1.10.1 (2026-01-12)
 
 ### Fix
