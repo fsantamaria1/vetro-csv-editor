@@ -1,3 +1,9 @@
+## v1.12.0 (2026-01-16)
+
+### Feat
+
+- **editor**: Add "Apt / Unit" and "Serviceable Date" to Service Location columns
+
 ## v1.11.0 (2026-01-16)
 
 ### Feat
