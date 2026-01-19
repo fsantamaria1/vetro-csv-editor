@@ -7,94 +7,11 @@ import streamlit as st
 import pandas as pd
 from pandas.errors import ParserError
 
-from vetro.api import VetroAPIClient
+from vetro.api import VetroAPIClient, fetch_layer_schema
 from vetro.config import get_effective_api_key
 from vetro.state import init_shared_state, sync_storage
 
 st.set_page_config(page_title="Vetro Editor", page_icon="🔧", layout="wide")
-
-# Feature Type Column Configurations
-FEATURE_COLUMNS = {
-    "Flower Pot Dead End": [
-        "ID",
-        "Location",
-        "Name",
-        "Notes",
-        "RUS Code",
-        "vetro_id",
-    ],
-    "Service Location": [
-        "ID",
-        "Name",
-        "Address",
-        "Street Address",
-        "Apt / Unit",
-        "City",
-        "State",
-        "Zip Code",
-        "Location Type",
-        "Note",
-        "Drop Type",
-        "Build",
-        "Latitude",
-        "Source",
-        "Serviceable Date",
-        "County",
-        "vetro_id",
-    ],
-    "Handhole": [
-        "ID",
-        "Name",
-        "Location",
-        "Type",
-        "Note",
-        "Build",
-        "Owner",
-        "RUS Code",
-        "Size",
-        "MST",
-        "Splicing",
-        "vetro_id",
-    ],
-    "Aerial Splice Closure": [
-        "ID",
-        "Name",
-        "Owner",
-        "Location",
-        "Structure ID",
-        "Note",
-        "Build",
-        "RUS Code",
-        "HO 1",
-        "vetro_id",
-    ],
-    "Pole": [
-        "ID",
-        "Road Name",
-        "Town",
-        "Project",
-        "State",
-        "Owner",
-        "Elco Id",
-        "Telco Id",
-        "Drop Type",
-        "Attachment Year",
-        "Make Ready Required",
-        "Licensed",
-        "Attachment Height",
-        "Age",
-        "Class",
-        "Height",
-        "Owner Acknowledgement",
-        "Permitted",
-        "Surveyed",
-        "Acknowledgement",
-        "Entry Order",
-        "Make Ready Explanation",
-        "Permit Number",
-        "vetro_id",
-    ],
-}
 
 FEATURE_TYPE_KEYWORDS = {
     "flower": "Flower Pot Dead End",
@@ -104,20 +21,6 @@ FEATURE_TYPE_KEYWORDS = {
     "splice": "Aerial Splice Closure",
     "closure": "Aerial Splice Closure",
     "pole": "Pole",
-}
-
-# Define strict data types for columns that are not strings
-COLUMN_TYPE_OVERRIDES = {
-    "Pole": {
-        "Height": "int",
-        "Permitted": "bool",
-        "Surveyed": "bool",
-        "Age": "int",
-        "Entry Order": "int",
-    },
-    "Aerial Splice Closure": {
-        "HO 1": "int",
-    },
 }
 
 
@@ -132,39 +35,54 @@ def init_session_state():
     ss.setdefault("feature_types", {})
     ss.setdefault("current_file", None)
     ss.setdefault("editor_id", 0)
+    ss.setdefault("layer_schema", {})
 
 
 init_session_state()
 
 
+def ensure_schema_loaded():
+    """Load schema into session state if it's missing."""
+    if not st.session_state["layer_schema"]:
+        api_key = get_effective_api_key()
+        if api_key:
+            with st.spinner("Fetching Layer Schema..."):
+                st.session_state["layer_schema"] = fetch_layer_schema(api_key)
+
+
+ensure_schema_loaded()
+
+
 def detect_feature_type(filename: str, columns: List[str] = None) -> Optional[str]:
-    """
-    Detect feature type using a cascading strategy:
-    1. Keyword matching on filename (Fastest).
-    2. Strict match: Check if the CSV contains ALL columns defined for a type (High Confidence).
-    3. Heuristic: Count column overlaps for partial updates (Fallback).
-    """
-    # Filename matching
+    """Detect feature type using cascading strategy with Dynamic Schema."""
+    schema = st.session_state["layer_schema"]
+
+    # 1. Filename Strategy
     filename_lower = filename.lower()
     for k, v in FEATURE_TYPE_KEYWORDS.items():
         if k in filename_lower:
-            return v
+            if v in schema:
+                return v
 
-    if columns:
+    # 2. Dynamic Column Strategy
+    if columns and schema:
         df_cols_set = set(columns)
 
-        # Strict Column name matching
-        for f_type, known_cols in FEATURE_COLUMNS.items():
-            if set(known_cols).issubset(df_cols_set):
+        # Strict Match
+        for f_type, config in schema.items():
+            known_cols = config["columns"]
+            detection_cols = set([c for c in known_cols if c != "vetro_id"])
+            if detection_cols.issubset(df_cols_set):
                 return f_type
 
-        # Heuristic / Partial Match
+        # Heuristic Match
         best_match = None
         max_score = 0
 
-        for f_type, f_cols in FEATURE_COLUMNS.items():
-            overlap = len(df_cols_set.intersection(set(f_cols)))
-            # Require at least 3 matching columns to avoid false positives
+        for f_type, config in schema.items():
+            known_cols = set(config["columns"])
+            overlap = len(df_cols_set.intersection(known_cols))
+
             if overlap > max_score and overlap >= 3:
                 max_score = overlap
                 best_match = f_type
@@ -176,32 +94,26 @@ def detect_feature_type(filename: str, columns: List[str] = None) -> Optional[st
 
 
 def enforce_column_types(df: pd.DataFrame, feature_type: str) -> pd.DataFrame:
-    """
-    Convert specific columns to their required API types (int, bool).
-    Handles cleaning of messy CSV data (e.g., "Yes" -> True, "45.0" -> 45).
-    """
-    if not feature_type or feature_type not in COLUMN_TYPE_OVERRIDES:
+    """Convert specific columns to their required API types."""
+    schema = st.session_state["layer_schema"]
+
+    if not feature_type or feature_type not in schema:
         return df
 
-    type_map = COLUMN_TYPE_OVERRIDES[feature_type]
+    type_map = schema[feature_type].get("types", {})
     df_clean = df.copy()
 
     for col, dtype in type_map.items():
         if col not in df_clean.columns:
             continue
 
-        # Handle Integers
         if dtype == "int":
-            # Coerce errors to NaN, then fill with None for the API
-            # This ensures "45.0" becomes 45, and garbage strings become null (safe)
             numeric_series = pd.to_numeric(df_clean[col], errors="coerce")
-
-            # Convert to Python int objects (or None)
             df_clean[col] = numeric_series.apply(
                 lambda x: int(x) if pd.notna(x) else None
             )
-
-        # Handle Booleans
+        elif dtype == "float":
+            df_clean[col] = pd.to_numeric(df_clean[col], errors="coerce")
         elif dtype == "bool":
 
             def parse_bool(x):
@@ -212,7 +124,7 @@ def enforce_column_types(df: pd.DataFrame, feature_type: str) -> pd.DataFrame:
                     return True
                 if s in ["false", "0", "no", "n", "f"]:
                     return False
-                return None  # Invalid/Unknown becomes None
+                return None
 
             df_clean[col] = df_clean[col].apply(parse_bool)
 
@@ -351,15 +263,14 @@ def render_data_editor(current_file: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """Render the main data editor widget and return (edited_df, diff_df)."""
     original_df = st.session_state["dataframes"][current_file]
     current_type = st.session_state["feature_types"].get(current_file)
+    schema = st.session_state["layer_schema"]
 
     st.markdown(f"## Editing: **{current_file}**")
 
-    # Create list of options
-    col_config, col_status = st.columns([1, 1])
+    col_config, col_status = st.columns([1, 2])
 
     with col_config:
-        options = list(FEATURE_COLUMNS.keys())
-
+        options = list(schema.keys())
         try:
             idx = options.index(current_type) if current_type in options else None
         except ValueError:
@@ -372,6 +283,7 @@ def render_data_editor(current_file: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
             index=idx,
             placeholder="Select feature type...",
             help="Select the Vetro feature type to enable column filtering and type enforcement.",
+            label_visibility="collapsed",
         )
 
     # If user changed the type manually, update session state and rerun to apply
@@ -391,21 +303,23 @@ def render_data_editor(current_file: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
             else:
                 st.success(f"✅ Manual Configuration: **{feature_type}**")
         else:
-            st.warning("⚠️ **Unknown Type.** Please select a feature type to edit.")
+            if not schema:
+                st.error("⚠️ **API Error.** Could not fetch schema. Check API Key.")
+            else:
+                st.warning("⚠️ **Unknown Type.** Please select a feature type to edit.")
 
     st.divider()
 
-    # Determine columns
-    if feature_type and feature_type in FEATURE_COLUMNS:
-        display_cols = [
-            c for c in FEATURE_COLUMNS[feature_type] if c in original_df.columns
-        ]
+    # Determine columns using Dynamic Schema
+    if feature_type and feature_type in schema:
+        allowed_cols = schema[feature_type]["columns"]
+        display_cols = [c for c in allowed_cols if c in original_df.columns]
     else:
         display_cols = original_df.columns.tolist()
 
     # Ensure vetro_id is always visible and is the first column
     if "vetro_id" in original_df.columns:
-        # If it was already in the list (e.g. from FEATURE_COLUMNS), remove it first
+        # If it was already in the list, remove it first
         if "vetro_id" in display_cols:
             display_cols.remove("vetro_id")
         # Insert at the very beginning
@@ -413,12 +327,52 @@ def render_data_editor(current_file: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
 
     st.markdown("### 📝 Edit Data")
 
+    # Create a working copy so we don't mess up the session state original
+    df_to_edit = original_df[display_cols].copy()
+
     column_config = {"vetro_id": st.column_config.TextColumn("Vetro ID", disabled=True)}
+
+    if feature_type and feature_type in schema:
+        layer_config = schema[feature_type]
+        type_map = layer_config.get("types", {})
+
+        for col in display_cols:
+            if col == "vetro_id":
+                continue
+
+            # 1. Strict Numeric/Bool Fields (Defined in API Schema)
+            if col in type_map:
+                dtype = type_map[col]
+                if dtype == "int":
+                    column_config[col] = st.column_config.NumberColumn(col, step=1)
+                    # Force Pandas to treat as nullable Int
+                    df_to_edit[col] = pd.to_numeric(
+                        df_to_edit[col], errors="coerce"
+                    ).astype("Int64")
+                elif dtype == "float":
+                    column_config[col] = st.column_config.NumberColumn(col)
+                    df_to_edit[col] = pd.to_numeric(df_to_edit[col], errors="coerce")
+                elif dtype == "bool":
+                    column_config[col] = st.column_config.CheckboxColumn(col)
+
+            # 2. Everything else -> Force TextColumn
+            else:
+                column_config[col] = st.column_config.TextColumn(col)
+
+                def clean_str(val):
+                    if pd.isna(val):
+                        return None
+                    # Convert float "123.0" -> "123" for cleaner display
+                    if isinstance(val, float) and val.is_integer():
+                        return str(int(val))
+                    return str(val)
+
+                df_to_edit[col] = df_to_edit[col].apply(clean_str)
 
     editor_key = f"editor_{current_file}_{st.session_state['editor_id']}"
 
     edited_df = st.data_editor(
-        original_df[display_cols],
+        df_to_edit,
         key=editor_key,
         height=500,
         width="stretch",
@@ -426,8 +380,8 @@ def render_data_editor(current_file: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
         column_config=column_config,
     )
 
-    # Compute diff
-    diff_df = compute_diff(original_df, edited_df)
+    # Compare against df_to_edit to avoid false positive diffs (e.g. 123 vs "123")
+    diff_df = compute_diff(df_to_edit, edited_df)
 
     st.markdown("### 🔎 Review Changes")
     if len(diff_df) > 0:
