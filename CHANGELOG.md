@@ -1,3 +1,10 @@
+## v1.13.3 (2026-01-22)
+
+### Refactor
+
+- **architecture**: extract configuration constants to dedicated module
+- **constants**: Extract configuration constants from editor.py and api.py
+
 ## v1.13.2 (2026-01-22)
 
 ### Fix
