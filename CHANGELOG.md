@@ -1,3 +1,14 @@
+## v1.13.0 (2026-01-22)
+
+### Feat
+
+- **api**: add dynamic schema fetching and type mapping
+
+### Refactor
+
+- **editor**: extract helpers to reduce complexity and fix linting errors
+- **editor**: replace static config with api-driven schema and string enforcement
+
 ## v1.12.0 (2026-01-16)
 
 ### Feat
