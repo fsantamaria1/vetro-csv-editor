@@ -5,13 +5,35 @@ Pandas DataFrames to Vetro feature payloads.
 
 import time
 import logging
-from typing import List, Dict
+from typing import List, Dict, Any, Optional, Tuple
 import requests
 import pandas as pd
+import streamlit as st
 
 # Configure logger
 logging.getLogger(__name__).addHandler(logging.NullHandler())
 logger = logging.getLogger(__name__)
+
+ALLOWED_LAYERS = [
+    "Pole",
+    "Handhole",
+    "Service Location",
+    "Aerial Splice Closure",
+    "Flower Pot Dead End",
+]
+
+SYSTEM_FIELDS = [
+    "layer_id",
+    "plan_id",
+    "global_id",
+    "created_at",
+    "updated_at",
+    "geometry",
+    "shape",
+    "objectid",
+    "external_id",
+    "import_id",
+]
 
 
 class VetroAPIClient:
@@ -229,3 +251,91 @@ class VetroAPIClient:
             }
             features.append(feature)
         return features
+
+
+def map_vetro_type_to_python(
+    html_type: str, permitted_values: Optional[List[Any]] = None
+) -> str:
+    """Translates Vetro HTML input types to our internal Editor types."""
+    if html_type == "checkbox":
+        return "bool"
+
+    is_numeric_input = html_type == "number"
+
+    if permitted_values and isinstance(permitted_values, list):
+        if all(isinstance(v, int) for v in permitted_values):
+            return "int"
+        if all(isinstance(v, (int, float)) for v in permitted_values):
+            return "float"
+
+    if is_numeric_input:
+        return "float"
+
+    return "str"
+
+
+def _parse_layer_attributes(
+    attributes: Dict[str, Any],
+) -> Tuple[List[str], Dict[str, str]]:
+    """
+    Helper to parse attributes for a single layer.
+    Extracting this logic fixes the 'Too many local variables' linting error.
+    """
+    columns = []
+    type_overrides = {}
+
+    for name, attr in attributes.items():
+        if attr.get("is_hidden", False):
+            continue
+        if name.lower() in SYSTEM_FIELDS or name.startswith("v_"):
+            continue
+
+        columns.append(name)
+
+        html_input = attr.get("html_input_type", "text")
+        permitted = attr.get("permitted_values")
+
+        # Call our clean mapping function
+        py_type = map_vetro_type_to_python(html_input, permitted)
+
+        if py_type != "str":
+            type_overrides[name] = py_type
+
+    # Ensure vetro_id is always present
+    if "vetro_id" not in columns:
+        columns.insert(0, "vetro_id")
+
+    return columns, type_overrides
+
+
+@st.cache_data(ttl=3600)
+def fetch_layer_schema(
+    api_key: str, base_url: str = "https://api.vetro.io/v3"
+) -> Dict[str, Any]:
+    """Fetches layer definitions from API and returns a clean schema dict."""
+    headers = {"Token": api_key}
+
+    try:
+        resp = requests.get(f"{base_url}/layers", headers=headers, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+    except requests.exceptions.Timeout:
+        st.error("API Timeout: fetching layer schema took too long.")
+        return {}
+    except (requests.exceptions.RequestException, ValueError) as e:
+        st.error(f"Failed to fetch layer schema: {e}")
+        return {}
+
+    schema = {}
+    for layer in data.get("layers", []):
+        layer_name = layer.get("label")
+        if not layer_name or layer_name not in ALLOWED_LAYERS:
+            continue
+
+        attributes = layer.get("available_attributes", {})
+
+        columns, type_overrides = _parse_layer_attributes(attributes)
+
+        schema[layer_name] = {"columns": columns, "types": type_overrides}
+
+    return schema

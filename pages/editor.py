@@ -7,94 +7,11 @@ import streamlit as st
 import pandas as pd
 from pandas.errors import ParserError
 
-from vetro.api import VetroAPIClient
+from vetro.api import VetroAPIClient, fetch_layer_schema
 from vetro.config import get_effective_api_key
 from vetro.state import init_shared_state, sync_storage
 
 st.set_page_config(page_title="Vetro Editor", page_icon="🔧", layout="wide")
-
-# Feature Type Column Configurations
-FEATURE_COLUMNS = {
-    "Flower Pot Dead End": [
-        "ID",
-        "Location",
-        "Name",
-        "Notes",
-        "RUS Code",
-        "vetro_id",
-    ],
-    "Service Location": [
-        "ID",
-        "Name",
-        "Address",
-        "Street Address",
-        "Apt / Unit",
-        "City",
-        "State",
-        "Zip Code",
-        "Location Type",
-        "Note",
-        "Drop Type",
-        "Build",
-        "Latitude",
-        "Source",
-        "Serviceable Date",
-        "County",
-        "vetro_id",
-    ],
-    "Handhole": [
-        "ID",
-        "Name",
-        "Location",
-        "Type",
-        "Note",
-        "Build",
-        "Owner",
-        "RUS Code",
-        "Size",
-        "MST",
-        "Splicing",
-        "vetro_id",
-    ],
-    "Aerial Splice Closure": [
-        "ID",
-        "Name",
-        "Owner",
-        "Location",
-        "Structure ID",
-        "Note",
-        "Build",
-        "RUS Code",
-        "HO 1",
-        "vetro_id",
-    ],
-    "Pole": [
-        "ID",
-        "Road Name",
-        "Town",
-        "Project",
-        "State",
-        "Owner",
-        "Elco Id",
-        "Telco Id",
-        "Drop Type",
-        "Attachment Year",
-        "Make Ready Required",
-        "Licensed",
-        "Attachment Height",
-        "Age",
-        "Class",
-        "Height",
-        "Owner Acknowledgement",
-        "Permitted",
-        "Surveyed",
-        "Acknowledgement",
-        "Entry Order",
-        "Make Ready Explanation",
-        "Permit Number",
-        "vetro_id",
-    ],
-}
 
 FEATURE_TYPE_KEYWORDS = {
     "flower": "Flower Pot Dead End",
@@ -104,20 +21,6 @@ FEATURE_TYPE_KEYWORDS = {
     "splice": "Aerial Splice Closure",
     "closure": "Aerial Splice Closure",
     "pole": "Pole",
-}
-
-# Define strict data types for columns that are not strings
-COLUMN_TYPE_OVERRIDES = {
-    "Pole": {
-        "Height": "int",
-        "Permitted": "bool",
-        "Surveyed": "bool",
-        "Age": "int",
-        "Entry Order": "int",
-    },
-    "Aerial Splice Closure": {
-        "HO 1": "int",
-    },
 }
 
 
@@ -132,39 +35,54 @@ def init_session_state():
     ss.setdefault("feature_types", {})
     ss.setdefault("current_file", None)
     ss.setdefault("editor_id", 0)
+    ss.setdefault("layer_schema", {})
 
 
 init_session_state()
 
 
+def ensure_schema_loaded():
+    """Load schema into session state if it's missing."""
+    if not st.session_state["layer_schema"]:
+        api_key = get_effective_api_key()
+        if api_key:
+            with st.spinner("Fetching Layer Schema..."):
+                st.session_state["layer_schema"] = fetch_layer_schema(api_key)
+
+
+ensure_schema_loaded()
+
+
 def detect_feature_type(filename: str, columns: List[str] = None) -> Optional[str]:
-    """
-    Detect feature type using a cascading strategy:
-    1. Keyword matching on filename (Fastest).
-    2. Strict match: Check if the CSV contains ALL columns defined for a type (High Confidence).
-    3. Heuristic: Count column overlaps for partial updates (Fallback).
-    """
-    # Filename matching
+    """Detect feature type using cascading strategy with Dynamic Schema."""
+    schema = st.session_state["layer_schema"]
+
+    # 1. Filename Strategy
     filename_lower = filename.lower()
     for k, v in FEATURE_TYPE_KEYWORDS.items():
         if k in filename_lower:
-            return v
+            if v in schema:
+                return v
 
-    if columns:
+    # 2. Dynamic Column Strategy
+    if columns and schema:
         df_cols_set = set(columns)
 
-        # Strict Column name matching
-        for f_type, known_cols in FEATURE_COLUMNS.items():
-            if set(known_cols).issubset(df_cols_set):
+        # Strict Match
+        for f_type, config in schema.items():
+            known_cols = config["columns"]
+            detection_cols = {c for c in known_cols if c != "vetro_id"}
+            if detection_cols.issubset(df_cols_set):
                 return f_type
 
-        # Heuristic / Partial Match
+        # Heuristic Match
         best_match = None
         max_score = 0
 
-        for f_type, f_cols in FEATURE_COLUMNS.items():
-            overlap = len(df_cols_set.intersection(set(f_cols)))
-            # Require at least 3 matching columns to avoid false positives
+        for f_type, config in schema.items():
+            known_cols = set(config["columns"])
+            overlap = len(df_cols_set.intersection(known_cols))
+
             if overlap > max_score and overlap >= 3:
                 max_score = overlap
                 best_match = f_type
@@ -176,32 +94,26 @@ def detect_feature_type(filename: str, columns: List[str] = None) -> Optional[st
 
 
 def enforce_column_types(df: pd.DataFrame, feature_type: str) -> pd.DataFrame:
-    """
-    Convert specific columns to their required API types (int, bool).
-    Handles cleaning of messy CSV data (e.g., "Yes" -> True, "45.0" -> 45).
-    """
-    if not feature_type or feature_type not in COLUMN_TYPE_OVERRIDES:
+    """Convert specific columns to their required API types."""
+    schema = st.session_state["layer_schema"]
+
+    if not feature_type or feature_type not in schema:
         return df
 
-    type_map = COLUMN_TYPE_OVERRIDES[feature_type]
+    type_map = schema[feature_type].get("types", {})
     df_clean = df.copy()
 
     for col, dtype in type_map.items():
         if col not in df_clean.columns:
             continue
 
-        # Handle Integers
         if dtype == "int":
-            # Coerce errors to NaN, then fill with None for the API
-            # This ensures "45.0" becomes 45, and garbage strings become null (safe)
             numeric_series = pd.to_numeric(df_clean[col], errors="coerce")
-
-            # Convert to Python int objects (or None)
             df_clean[col] = numeric_series.apply(
                 lambda x: int(x) if pd.notna(x) else None
             )
-
-        # Handle Booleans
+        elif dtype == "float":
+            df_clean[col] = pd.to_numeric(df_clean[col], errors="coerce")
         elif dtype == "bool":
 
             def parse_bool(x):
@@ -212,7 +124,7 @@ def enforce_column_types(df: pd.DataFrame, feature_type: str) -> pd.DataFrame:
                     return True
                 if s in ["false", "0", "no", "n", "f"]:
                     return False
-                return None  # Invalid/Unknown becomes None
+                return None
 
             df_clean[col] = df_clean[col].apply(parse_bool)
 
@@ -347,19 +259,68 @@ def handle_file_upload():
     return 50
 
 
+def _prepare_editor_data(
+    df: pd.DataFrame, schema: dict, feature_type: Optional[str]
+) -> Tuple[pd.DataFrame, dict]:
+    """
+    Helper to prepare dataframe types and column config for the editor.
+    """
+    df_edit = df.copy()
+    col_config = {"vetro_id": st.column_config.TextColumn("Vetro ID", disabled=True)}
+
+    if not feature_type or feature_type not in schema:
+        # Default behavior for unknown types
+        return df_edit, col_config
+
+    layer_config = schema[feature_type]
+    type_map = layer_config.get("types", {})
+
+    for col in df_edit.columns:
+        if col == "vetro_id":
+            continue
+
+        # 1. Strict Numeric/Bool Fields
+        if col in type_map:
+            dtype = type_map[col]
+            if dtype == "int":
+                col_config[col] = st.column_config.NumberColumn(col, step=1)
+                df_edit[col] = pd.to_numeric(df_edit[col], errors="coerce").astype(
+                    "Int64"
+                )
+            elif dtype == "float":
+                col_config[col] = st.column_config.NumberColumn(col)
+                df_edit[col] = pd.to_numeric(df_edit[col], errors="coerce")
+            elif dtype == "bool":
+                col_config[col] = st.column_config.CheckboxColumn(col)
+
+        # 2. Force TextColumn for everything else
+        else:
+            col_config[col] = st.column_config.TextColumn(col)
+            # Cleaning lambda
+            df_edit[col] = df_edit[col].apply(
+                lambda val: (
+                    str(int(val))
+                    if (isinstance(val, float) and val.is_integer())
+                    else (str(val) if pd.notna(val) else None)
+                )
+            )
+
+    return df_edit, col_config
+
+
 def render_data_editor(current_file: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """Render the main data editor widget and return (edited_df, diff_df)."""
     original_df = st.session_state["dataframes"][current_file]
     current_type = st.session_state["feature_types"].get(current_file)
+    schema = st.session_state["layer_schema"]
 
     st.markdown(f"## Editing: **{current_file}**")
 
-    # Create list of options
-    col_config, col_status = st.columns([1, 1])
+    # Feature Type Selection UI
+    col_config, col_status = st.columns([1, 2])
 
     with col_config:
-        options = list(FEATURE_COLUMNS.keys())
-
+        options = list(schema.keys())
         try:
             idx = options.index(current_type) if current_type in options else None
         except ValueError:
@@ -372,6 +333,7 @@ def render_data_editor(current_file: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
             index=idx,
             placeholder="Select feature type...",
             help="Select the Vetro feature type to enable column filtering and type enforcement.",
+            label_visibility="collapsed",
         )
 
     # If user changed the type manually, update session state and rerun to apply
@@ -379,33 +341,32 @@ def render_data_editor(current_file: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
         st.session_state["feature_types"][current_file] = selected_type
         st.rerun()
 
-    feature_type = selected_type
-
+    # Status UI
     with col_status:
-
-        if feature_type:
+        if selected_type:
             auto_match = detect_feature_type(current_file, original_df.columns.tolist())
-
-            if feature_type == auto_match:
-                st.info(f"🎯 Auto-detected: **{feature_type}**")
+            if selected_type == auto_match:
+                st.info(f"🎯 Auto-detected: **{selected_type}**")
             else:
-                st.success(f"✅ Manual Configuration: **{feature_type}**")
+                st.success(f"✅ Manual Configuration: **{selected_type}**")
         else:
-            st.warning("⚠️ **Unknown Type.** Please select a feature type to edit.")
+            if not schema:
+                st.error("⚠️ **API Error.** Could not fetch schema. Check API Key.")
+            else:
+                st.warning("⚠️ **Unknown Type.** Please select a feature type to edit.")
 
     st.divider()
 
-    # Determine columns
-    if feature_type and feature_type in FEATURE_COLUMNS:
-        display_cols = [
-            c for c in FEATURE_COLUMNS[feature_type] if c in original_df.columns
-        ]
+    # Column Filtering
+    if selected_type and selected_type in schema:
+        allowed_cols = schema[selected_type]["columns"]
+        display_cols = [c for c in allowed_cols if c in original_df.columns]
     else:
         display_cols = original_df.columns.tolist()
 
     # Ensure vetro_id is always visible and is the first column
     if "vetro_id" in original_df.columns:
-        # If it was already in the list (e.g. from FEATURE_COLUMNS), remove it first
+        # If it was already in the list, remove it first
         if "vetro_id" in display_cols:
             display_cols.remove("vetro_id")
         # Insert at the very beginning
@@ -413,12 +374,15 @@ def render_data_editor(current_file: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
 
     st.markdown("### 📝 Edit Data")
 
-    column_config = {"vetro_id": st.column_config.TextColumn("Vetro ID", disabled=True)}
+    # Prepare Data
+    df_to_edit, column_config = _prepare_editor_data(
+        original_df[display_cols], schema, selected_type
+    )
 
     editor_key = f"editor_{current_file}_{st.session_state['editor_id']}"
 
     edited_df = st.data_editor(
-        original_df[display_cols],
+        df_to_edit,
         key=editor_key,
         height=500,
         width="stretch",
@@ -426,8 +390,8 @@ def render_data_editor(current_file: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
         column_config=column_config,
     )
 
-    # Compute diff
-    diff_df = compute_diff(original_df, edited_df)
+    # Compare against df_to_edit to avoid false positive diffs (e.g. 123 vs "123")
+    diff_df = compute_diff(df_to_edit, edited_df)
 
     st.markdown("### 🔎 Review Changes")
     if len(diff_df) > 0:
@@ -437,6 +401,28 @@ def render_data_editor(current_file: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
         st.info("✅ No changes detected.")
 
     return edited_df, diff_df
+
+
+def _perform_batch_update(
+    client: VetroAPIClient, data: pd.DataFrame, batch_size: int, placeholders: dict
+):
+    """Helper to run the batch update loop and update UI metrics."""
+
+    def update_dashboard(percent_complete, stats):
+        placeholders["prog_bar"].progress(percent_complete)
+        placeholders["success"].metric("✅ Success", stats["successful"])
+        placeholders["failed"].metric("❌ Failed", stats["failed"])
+        placeholders["pct"].metric("⏳ Progress", f"{int(percent_complete * 100)}%")
+
+        if stats["errors"]:
+            with placeholders["error_log"].container():
+                with st.expander("🚨 Error Log", expanded=True):
+                    st.error(f"Errors detected so far: {len(stats['errors'])}")
+                    st.dataframe(pd.DataFrame(stats["errors"]), width="stretch")
+
+    return client.batch_update_features(
+        data, batch_size=batch_size, progress_callback=update_dashboard
+    )
 
 
 def handle_api_submission(
@@ -456,8 +442,7 @@ def handle_api_submission(
             ["Smart Sync (Changes Only)", "Force Push All Rows"],
             index=1,
             horizontal=True,
-            help="""Smart Sync only sends rows you modified here.
-            Force Push sends the entire file (useful if you edited in Excel).""",
+            help="Smart Sync only sends rows you modified here. Force Push sends the entire file.",
         )
 
     # Logic to select which rows to send
@@ -484,8 +469,7 @@ def handle_api_submission(
     if feature_type:
         changed_rows = enforce_column_types(changed_rows, feature_type)
 
-    feature_count = len(changed_rows)
-    st.info(f"Ready to update {feature_count} features.")
+    st.info(f"Ready to update {len(changed_rows)} features.")
 
     col_conf, col_dry = st.columns([1, 2])
     with col_dry:
@@ -503,70 +487,42 @@ def handle_api_submission(
         if dry_run:
             # Generate preview from the sparse dataframe
             preview = client.convert_df_to_features(changed_rows.head(5))
-            st.json(
-                {
-                    "features": preview,
-                    "note": f"Preview of first 5 items ({update_mode})",
-                }
-            )
+            st.json({"features": preview, "note": f"Preview ({update_mode})"})
+            return
+
+        # UI Setup for Progress
+        st.divider()
+        st.markdown("### 📡 Update Progress")
+        prog_bar = st.progress(0)
+        m1, m2, m3 = st.columns(3)
+
+        # Helper dict to pass to the update function
+        placeholders = {
+            "prog_bar": prog_bar,
+            "success": m1.empty(),
+            "failed": m2.empty(),
+            "pct": m3.empty(),
+            "error_log": st.empty(),
+        }
+
+        # Init Metrics
+        placeholders["success"].metric("✅ Success", 0)
+        placeholders["failed"].metric("❌ Failed", 0)
+        placeholders["pct"].metric("⏳ Progress", "0%")
+
+        # Run Update
+        results = _perform_batch_update(client, changed_rows, batch_size, placeholders)
+
+        if results.get("failed", 0) == 0 and not results.get("rate_limited"):
+            st.success(f"✅ Updated {results['successful']} features!")
+            st.session_state["dataframes"][current_file].update(edited_df)
+            st.session_state["editor_id"] += 1
+        elif results["successful"] == 0:
+            st.error(f"❌ Update Failed: 0 ok, {results['failed']} failed.")
         else:
-            # Progress dashboard
-            st.divider()
-            st.markdown("### 📡 Update Progress")
-
-            # Create placeholders
-            prog_bar = st.progress(0)
-
-            # Metrics Columns
-            m_col1, m_col2, m_col3 = st.columns(3)
-            with m_col1:
-                success_metric = st.empty()
-            with m_col2:
-                fail_metric = st.empty()
-            with m_col3:
-                pct_metric = st.empty()
-
-            # Error Log Placeholder (will appear if errors exist)
-            error_log_placeholder = st.empty()
-
-            # Initialize Metrics
-            success_metric.metric("✅ Success", 0)
-            fail_metric.metric("❌ Failed", 0)
-            pct_metric.metric("⏳ Progress", "0%")
-
-            # Define the callback to update the UI
-            def update_dashboard(percent_complete, stats):
-                """Callback to update Streamlit widgets live."""
-                prog_bar.progress(percent_complete)
-
-                success_metric.metric("✅ Success", stats["successful"])
-                fail_metric.metric("❌ Failed", stats["failed"])
-                pct_metric.metric("⏳ Progress", f"{int(percent_complete * 100)}%")
-
-                # Render Errors LIVE as they happen
-                if stats["errors"]:
-                    with error_log_placeholder.container():
-                        with st.expander("🚨 Error Log", expanded=True):
-                            st.error(f"Errors detected so far: {len(stats['errors'])}")
-                            st.dataframe(pd.DataFrame(stats["errors"]), width="stretch")
-
-            # Run the update with the new callback
-            results = client.batch_update_features(
-                changed_rows, batch_size=batch_size, progress_callback=update_dashboard
+            st.warning(
+                f"⚠️ Partial success: {results['successful']} ok, {results['failed']} failed."
             )
-
-            if results.get("failed", 0) == 0 and not results.get("rate_limited"):
-                st.success(f"✅ Updated {results['successful']} features!")
-                # Update master dataframe
-                st.session_state["dataframes"][current_file].update(edited_df)
-                st.session_state["editor_id"] += 1
-                # st.rerun()
-            elif results["successful"] == 0:
-                st.error(f"❌ Update Failed: 0 ok, {results['failed']} failed.")
-            else:
-                st.warning(
-                    f"⚠️ Partial success: {results['successful']} ok, {results['failed']} failed."
-                )
 
 
 def main():
