@@ -135,73 +135,54 @@ def compute_diff(
     original: pd.DataFrame, edited: pd.DataFrame, id_col: str = "vetro_id"
 ) -> pd.DataFrame:
     """Compute differences between original and edited DataFrames."""
-    diffs = []
 
-    # 1. Strategy: Compare by ID
+    # 1. Align DataFrames based on available columns
+    # If ID exists, map by ID. Otherwise, map by row index.
     if id_col in original.columns and id_col in edited.columns:
         orig = original.set_index(id_col)
         new = edited.set_index(id_col)
-        common = orig.index.intersection(new.index)
-
-        for vid in common:
-            for col in orig.columns:
-                if col not in new.columns:
-                    continue
-                old = orig.at[vid, col]
-                newv = new.at[vid, col]
-
-                # Handle pd.NA comparisons safely
-                is_old_na = pd.isna(old)
-                is_new_na = pd.isna(newv)
-
-                # 1. Both are missing -> No Change
-                if is_old_na and is_new_na:
-                    continue
-
-                # 2. One is missing, one is not -> Changed
-                if is_old_na != is_new_na:
-                    pass  # Fall through to append diff
-
-                # 3. Both are present -> Compare Values
-                elif old == newv:
-                    continue
-
-                diffs.append(
-                    {
-                        "vetro_id": vid,
-                        "column": col,
-                        "old_value": old,
-                        "new_value": newv,
-                    }
-                )
-
-    # 2. Strategy: Compare by Index (Fallback)
+        key_label = "vetro_id"
     else:
-        for i in range(min(len(original), len(edited))):
-            for col in original.columns:
-                if col not in edited.columns:
-                    continue
-                old = original.iloc[i][col]
-                newv = edited.iloc[i][col]
+        orig = original
+        new = edited
+        key_label = "row_index"
 
-                # Handle pd.NA comparisons safely
-                is_old_na = pd.isna(old)
-                is_new_na = pd.isna(newv)
+    # 2. Determine common scope (Rows and Columns)
+    # This replaces the manual 'min(len)' and column checks
+    common_index = orig.index.intersection(new.index)
+    common_cols = orig.columns.intersection(new.columns)
 
-                if is_old_na and is_new_na:
-                    continue
+    diffs = []
 
-                if is_old_na != is_new_na:
-                    pass
-                elif old == newv:
-                    continue
-                diffs.append(
-                    {"row_index": i, "column": col, "old_value": old, "new_value": newv}
-                )
+    # 3. Unified Comparison Loop
+    for idx in common_index:
+        for col in common_cols:
+            old = orig.at[idx, col]
+            newv = new.at[idx, col]
+
+            # Safe NA Comparison Logic
+            is_old_na = pd.isna(old)
+            is_new_na = pd.isna(newv)
+
+            # A. Both missing -> Equal
+            if is_old_na and is_new_na:
+                continue
+
+            # B. One missing, one present -> Changed
+            if is_old_na != is_new_na:
+                pass
+
+            # C. Both present -> Check Equality
+            elif old == newv:
+                continue
+
+            diffs.append(
+                {key_label: idx, "column": col, "old_value": old, "new_value": newv}
+            )
 
     diff_df = pd.DataFrame(diffs)
 
-    # Convert mixed types (Strings + NaNs) to string to prevent Arrow crashes
+    # 4. Type safety for Arrow/Streamlit
     if not diff_df.empty:
         diff_df["old_value"] = diff_df["old_value"].astype(str)
         diff_df["new_value"] = diff_df["new_value"].astype(str)
