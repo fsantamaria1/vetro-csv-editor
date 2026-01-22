@@ -1,3 +1,13 @@
+## v1.13.1 (2026-01-22)
+
+### Fix
+
+- **editor**: handle pd.NA comparisons safely in compute_diff
+
+### Refactor
+
+- **editor**: unify compute_diff logic to eliminate code duplication
+
 ## v1.13.0 (2026-01-22)
 
 ### Feat
