@@ -9,31 +9,11 @@ from typing import List, Dict, Any, Optional, Tuple
 import requests
 import pandas as pd
 import streamlit as st
+from vetro.constants import ALLOWED_LAYERS, SYSTEM_FIELDS
 
 # Configure logger
 logging.getLogger(__name__).addHandler(logging.NullHandler())
 logger = logging.getLogger(__name__)
-
-ALLOWED_LAYERS = [
-    "Pole",
-    "Handhole",
-    "Service Location",
-    "Aerial Splice Closure",
-    "Flower Pot Dead End",
-]
-
-SYSTEM_FIELDS = [
-    "layer_id",
-    "plan_id",
-    "global_id",
-    "created_at",
-    "updated_at",
-    "geometry",
-    "shape",
-    "objectid",
-    "external_id",
-    "import_id",
-]
 
 
 class VetroAPIClient:
@@ -308,7 +288,7 @@ def _parse_layer_attributes(
     return columns, type_overrides
 
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=300)
 def fetch_layer_schema(
     api_key: str, base_url: str = "https://api.vetro.io/v3"
 ) -> Dict[str, Any]:

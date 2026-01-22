@@ -10,18 +10,9 @@ from pandas.errors import ParserError
 from vetro.api import VetroAPIClient, fetch_layer_schema
 from vetro.config import get_effective_api_key
 from vetro.state import init_shared_state, sync_storage
+from vetro.constants import LAYER_KEYWORDS
 
 st.set_page_config(page_title="Vetro Editor", page_icon="🔧", layout="wide")
-
-FEATURE_TYPE_KEYWORDS = {
-    "flower": "Flower Pot Dead End",
-    "pot": "Flower Pot Dead End",
-    "service": "Service Location",
-    "handhole": "Handhole",
-    "splice": "Aerial Splice Closure",
-    "closure": "Aerial Splice Closure",
-    "pole": "Pole",
-}
 
 
 def init_session_state():
@@ -59,7 +50,7 @@ def detect_feature_type(filename: str, columns: List[str] = None) -> Optional[st
 
     # 1. Filename Strategy
     filename_lower = filename.lower()
-    for k, v in FEATURE_TYPE_KEYWORDS.items():
+    for k, v in LAYER_KEYWORDS.items():
         if k in filename_lower:
             if v in schema:
                 return v
