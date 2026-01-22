@@ -427,6 +427,22 @@ def _perform_batch_update(
     )
 
 
+def _update_session_state_df(current_file: str, edited_df: pd.DataFrame):
+    """
+    Update session state dataframe with edited values.
+    Replaces .update() to avoid dtype incompatibility warnings (Float64 vs float64).
+    """
+    if current_file not in st.session_state["dataframes"]:
+        return
+
+    original = st.session_state["dataframes"][current_file]
+
+    # Direct column assignment handles dtype changes (e.g., float64 -> Float64) safely
+    # and aligns on index.
+    for col in edited_df.columns:
+        original[col] = edited_df[col]
+
+
 def handle_api_submission(
     current_file: str, edited_df: pd.DataFrame, diff_df: pd.DataFrame, batch_size: int
 ):
@@ -517,7 +533,9 @@ def handle_api_submission(
 
         if results.get("failed", 0) == 0 and not results.get("rate_limited"):
             st.success(f"✅ Updated {results['successful']} features!")
-            st.session_state["dataframes"][current_file].update(edited_df)
+
+            _update_session_state_df(current_file, edited_df)
+
             st.session_state["editor_id"] += 1
         elif results["successful"] == 0:
             st.error(f"❌ Update Failed: 0 ok, {results['failed']} failed.")
@@ -553,7 +571,8 @@ def main():
     col1, col2, col3 = st.columns([1, 1, 1])
     with col1:
         if st.button("💾 Save Snapshot"):
-            st.session_state["dataframes"][current].update(edited_df)
+            _update_session_state_df(current, edited_df)
+
             st.session_state["editor_id"] += 1
             st.success("Saved!")
             st.rerun()
