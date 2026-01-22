@@ -149,10 +149,23 @@ def compute_diff(
                     continue
                 old = orig.at[vid, col]
                 newv = new.at[vid, col]
-                if pd.isna(old) and pd.isna(newv):
+
+                # Handle pd.NA comparisons safely
+                is_old_na = pd.isna(old)
+                is_new_na = pd.isna(newv)
+
+                # 1. Both are missing -> No Change
+                if is_old_na and is_new_na:
                     continue
-                if old == newv:
+
+                # 2. One is missing, one is not -> Changed
+                if is_old_na != is_new_na:
+                    pass  # Fall through to append diff
+
+                # 3. Both are present -> Compare Values
+                elif old == newv:
                     continue
+
                 diffs.append(
                     {
                         "vetro_id": vid,
@@ -170,9 +183,17 @@ def compute_diff(
                     continue
                 old = original.iloc[i][col]
                 newv = edited.iloc[i][col]
-                if pd.isna(old) and pd.isna(newv):
+
+                # Handle pd.NA comparisons safely
+                is_old_na = pd.isna(old)
+                is_new_na = pd.isna(newv)
+
+                if is_old_na and is_new_na:
                     continue
-                if old == newv:
+
+                if is_old_na != is_new_na:
+                    pass
+                elif old == newv:
                     continue
                 diffs.append(
                     {"row_index": i, "column": col, "old_value": old, "new_value": newv}
