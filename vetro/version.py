@@ -2,4 +2,4 @@
 Central version definition for the Vetro Editor package
 """
 
-__version__ = "1.13.1"
+__version__ = "1.13.2"

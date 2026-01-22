@@ -1,3 +1,9 @@
+## v1.13.2 (2026-01-22)
+
+### Fix
+
+- **editor**: fix incompatibility warning when saving Float64 columns
+
 ## v1.13.1 (2026-01-22)
 
 ### Fix
