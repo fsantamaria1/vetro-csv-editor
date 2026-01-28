@@ -7,12 +7,12 @@ A Streamlit-based GUI application for editing and updating Vetro feature layer p
 - 📁 **Multi-file CSV management** - Upload and edit multiple CSV files simultaneously
 - ✏️ **Interactive editing** - Edit cells, add/delete rows with data validation
 - 🧠 **Persistent Session State** - API keys and preferences are saved securely and survive page refreshes
-- 🎯 **Feature type detection** - Automatically detects and configures columns based on feature type
+- 🎯 **Dynamic Schema Detection** - Automatically fetches layer definitions (columns/types) from the Vetro API
 - 🔍 **Advanced filtering** - Search and filter data by any column
 - 🚀 **Smart API Integration**
     - **Throttling:** Automatically pauses between batches to respect rate limits (1 req/sec).
     - **Robust Retries:** Automatically switches to row-by-row updates if a batch fails (isolating "poison" data).
-    - **Type Enforcement:** Automatically converts columns like `Height` (int) and `Permitted` (bool) to the correct JSON types.
+    - **Type Enforcement:** Automatically converts columns like `Height` (int) and `Permitted` (bool) to the correct JSON types based on API metadata.
 - 🔄 **Update Strategies** - Choose between "Smart Sync" (changes only) or "Force Push" (bulk update all rows).
 - 💾 **Export options** - Download edited files as CSV or JSON
 - 🎯 **Dry run mode** - Preview API payloads before sending
@@ -21,13 +21,26 @@ A Streamlit-based GUI application for editing and updating Vetro feature layer p
 
 ## 📋 Supported Feature Types
 
-| Feature Type | Columns |
-|-------------|---------|
-| **Flower Pot Dead End** | ID, Location, Name, Notes, RUS Code, vetro_id |
-| **Service Location** | ID, Name, Address, Street Address, City, State, Zip Code, Location Type, Note, Drop Type, Build, Latitude, Source, County, vetro_id |
-| **Handhole** | ID, Name, Location, Type, Note, Build, Owner, RUS Code, Size, MST, Splicing, vetro_id |
-| **Aerial Splice Closure** | ID, Name, Owner, Location, Structure ID, Note, Build, RUS Code, HO 1, vetro_id |
-| **Pole** | ID, Road Name, Town, Project, State, Owner, Elco Id, Telco Id, Drop Type, Attachment Year, Make Ready Required, Licensed, Attachment Height, Age, Class, Height, Owner Acknowledgement, Permitted, Surveyed, Acknowledgement, Entry Order, Make Ready Explanation, Permit Number, vetro_id |
+The application currently supports the following feature layers. Auto-detection is based on filename keywords or column structure.
+
+| Feature Type | Detection Keywords (Filename) |
+|-------------|-------------------------------|
+| **Flower Pot Dead End** | flower, pot |
+| **Service Location** | service |
+| **Handhole** | handhole |
+| **Aerial Splice Closure** | splice, closure |
+| **Pole** | pole |
+| **Pigtail** | pigtail |
+| **Lateral** | lateral |
+| **Backbone** | backbone |
+| **Duct** | duct |
+| **Drop** | drop |
+| **Cabinet (FDH)** | cabinet, fdh |
+| **CO** | co |
+| **NAP** | nap |
+| **Slack Loop** | slack, loop |
+
+*Note: Supported layers are configured in `vetro/constants.py`.*
 
 ## 🚀 Installation
 
@@ -47,46 +60,44 @@ A Streamlit-based GUI application for editing and updating Vetro feature layer p
 
 2. **Ensure your project structure is correct (see Project Structure below).**
 3. **Build and run:**
+
 ```bash
 docker-compose build
 docker-compose up -d
 
 ```
 
-
 4. **Access the app:**
+
 * Open your browser: http://localhost:8501
-
-
 
 ### Option 2: Local Python Installation
 
 1. **Create virtual environment:**
+
 ```bash
 python -m venv venv
 
 ```
 
-
 2. **Activate virtual environment:**
+
 * **Windows:** `venv\Scripts\activate`
 * **Mac/Linux:** `source venv/bin/activate`
 
-
 3. **Install dependencies:**
+
 ```bash
 pip install -r requirements.txt
 
 ```
 
-
 4. **Run the application:**
+
 ```bash
 streamlit run main.py
 
 ```
-
-
 
 ## 📖 Usage Guide
 
@@ -151,22 +162,21 @@ set VETRO_API_KEY=your_api_key_here     # Windows
 **API Update Tab:**
 
 1. **Select Strategy:**
+
 * **Force Push (Default):** Updates ALL rows in the table. Recommended for bulk edits.
 * **Smart Sync:** Only updates rows that have changed in the editor.
 
-
 2. **Dry Run (Recommended first):**
+
 * Keep "Dry Run" checkbox enabled.
 * Click "🚀 Confirm and Update".
 * Review JSON payload preview.
 
-
 3. **Actual Update:**
+
 * Uncheck "Dry Run".
 * Click "🚀 Confirm and Update".
 * Monitor progress bar.
-
-
 
 **What Gets Updated:**
 
@@ -208,12 +218,14 @@ The application automatically handles Vetro API limits:
 vetro_editor/
 ├── main.py                     # Application Entry Point (Home Page)
 ├── pages/                      # Streamlit Pages
+│   ├── __init__.py
 │   ├── editor.py               # Main Editor Logic
 │   └── settings.py             # Configuration & Key Management
 ├── vetro/                      # Application Package
 │   ├── __init__.py
 │   ├── api.py                  # Vetro API Client
 │   ├── config.py               # Configuration Utilities
+│   ├── constants.py            # Layer Config & System Fields
 │   ├── local_storage.py        # Browser Storage Helpers
 │   ├── state.py                # Session State Management
 │   ├── ui.py                   # Shared UI Components
@@ -265,12 +277,9 @@ Access at: http://localhost:8502
 
 **Solution:** Reduce the **Batch Size** in the sidebar (e.g., lower it from 100 to 50) and try again.
 
-
 ## 📝 API Reference
 
 ### Vetro API Endpoint
-
-
 
 ```
 PATCH [https://api.vetro.io/v3/features](https://api.vetro.io/v3/features)
