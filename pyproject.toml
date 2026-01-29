@@ -1,6 +1,6 @@
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "1.13.3"
+version = "1.13.4"
 version_files = [
     "vetro/version.py"
 ]

@@ -1,3 +1,13 @@
+## v1.13.4 (2026-01-29)
+
+### Fix
+
+- **api**: Add EXCLUDED_FIELDS and SYSTEM_FIELDS to block specific business columns from and system columns from being edited
+
+### Refactor
+
+- **constants**: create the list of EXCLUDED_FIELDS
+
 ## v1.13.3 (2026-01-22)
 
 ### Refactor
