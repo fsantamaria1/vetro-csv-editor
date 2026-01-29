@@ -60,3 +60,11 @@ SYSTEM_FIELDS = [
     "external_id",
     "import_id",
 ]
+
+EXCLUDED_FIELDS = [
+    "Total Length",
+    "Build",
+    "Helix Factor",
+    "Sag Factor",
+    "Premise Length",
+]
