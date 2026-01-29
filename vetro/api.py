@@ -9,7 +9,7 @@ from typing import List, Dict, Any, Optional, Tuple
 import requests
 import pandas as pd
 import streamlit as st
-from vetro.constants import ALLOWED_LAYERS, SYSTEM_FIELDS
+from vetro.constants import ALLOWED_LAYERS, SYSTEM_FIELDS, EXCLUDED_FIELDS
 
 # Configure logger
 logging.getLogger(__name__).addHandler(logging.NullHandler())
@@ -202,12 +202,25 @@ class VetroAPIClient:
 
     def convert_df_to_features(self, df: pd.DataFrame) -> List[Dict]:
         """Convert DataFrame to Vetro JSON payload, preserving types."""
+
+        all_exclusions = SYSTEM_FIELDS + EXCLUDED_FIELDS
+        excluded_set = {f.lower() for f in all_exclusions}
+
+
         features = []
         for _, row in df.iterrows():
             properties = {}
             for col in df.columns:
-                if col == "vetro_id" or str(col).startswith("v_"):
+                col_name = str(col)
+                col_lower = col_name.lower()
+
+                # Skip IDs, internal v_ cols, and excluded fields
+                if (
+                    col == "vetro_id" 
+                    or str(col).startswith("v_")
+                    or col_lower in excluded_set):
                     continue
+
                 val = row[col]
 
                 # 1. Explicit None -> JSON null
@@ -264,10 +277,13 @@ def _parse_layer_attributes(
     columns = []
     type_overrides = {}
 
+    all_exclusions = SYSTEM_FIELDS + EXCLUDED_FIELDS
+    ignored_fields_lower = {f.lower() for f in all_exclusions}
+
     for name, attr in attributes.items():
         if attr.get("is_hidden", False):
             continue
-        if name.lower() in SYSTEM_FIELDS or name.startswith("v_"):
+        if name.lower() in ignored_fields_lower or name.startswith("v_"):
             continue
 
         columns.append(name)
